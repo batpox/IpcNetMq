@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "IpcStep": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\IpcNetMq\\Examples\\TestClient.exe"
+    }
+  }
+}

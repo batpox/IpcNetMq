@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TestClientIpcNetMq": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}
