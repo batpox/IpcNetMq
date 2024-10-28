@@ -69,13 +69,15 @@ namespace IpcNetMq
 
         /// <summary>
         /// Serialized json string containing user-information that you can employ
-        /// to customize a REQ-REP implementation.
+        /// to customize a REQ-REP implementation, such as providing context.
         /// </summary>
         [JsonProperty("user_string")]
         public string UserString { get; set; } = "";
 
         /// <summary>
-        /// json string for request. Serialized name,value pairs
+        /// json string for request. Serialized list of name,value pairs.
+        /// Note that by convention a response list is also included in
+        /// the request to indicate expectations from the call.
         /// </summary>
         [JsonProperty("request_string")]
         public string RequestString { get; set; }
@@ -100,126 +102,6 @@ namespace IpcNetMq
         {
             return $"Packet #[{SequenceNumber}] ClientID={ClientId} RequestSize={RequestString.Length} ResponseSize={ResponseString.Length}";
         }
-        ////public static string SerializeToJsonString(IpcPacket packet)
-        ////{
-        ////    return JsonConvert.SerializeObject(packet);
-        ////}
-
-        ////public static IpcPacket DeserializeFromJsonString(string json)
-        ////{
-        ////    return JsonConvert.DeserializeObject<IpcPacket>(json);
-        ////}
-
-        ////public static string SerializePairListToJsonString(List<NameValuePair> PairList)
-        ////{
-        ////    try
-        ////    {
-        ////        string jsonString = JsonConvert.SerializeObject(PairList.ToArray());
-        ////        return jsonString;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        throw new Exception($"Cannot Serialize PairList. Err={ex.Message}");
-        ////    }
-        ////}
-
-        ////public static List<T> DeserializePairListFromJsonString<T>(string jsonString)
-        ////{
-        ////    try
-        ////    {
-        ////        T[] pairArray = JsonConvert.DeserializeObject<T[]>(jsonString);
-        ////        List<T> PairList = new List<T>(pairArray);
-        ////        return PairList;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        throw new Exception($"Cannot Deserialize PairList from={jsonString} Err={ex.Message}");
-        ////    }
-        ////}
-
-        /////// <summary>
-        /////// Create/bind the response socket if not already created.
-        /////// If it exists, then Unbind/Close it.
-        /////// Regardless, attempt to bind to it.
-        /////// </summary>
-        /////// <param name="reason"></param>
-        /////// <returns></returns>
-        ////public bool OpenConnection(out string reason)
-        ////{
-        ////    reason = "";
-        ////    string marker = "Checking socket.";
-        ////    try
-        ////    {
-        ////        if (ResponseSocket == null)
-        ////        {
-        ////            marker = "Creating new socket";
-        ////            ResponseSocket = new ResponseSocket();
-        ////        }
-        ////        else
-        ////        {
-        ////            marker = "Unbinding socket";
-        ////            if (UnbindSocket(out reason))
-        ////            {
-        ////                marker = "Closing socket";
-        ////                ResponseSocket.Close();
-        ////            }
-        ////        }
-
-        ////        ResponseSocket.Bind(Address);
-        ////        return true;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        reason = $"IPC Connection={this.ConnectionName}. Marker={marker}. Err={ex.Message}";
-        ////        return false;
-        ////    }
-
-        ////}
-
-        /////// <summary>
-        /////// Get a packet and deserialize it. Return the deserialized Packet.
-        /////// </summary>
-        /////// <returns></returns>
-        ////public static IpcPacket GetResponsePacket(ResponseSocket responseSocket)
-        ////{
-        ////    IpcPacket receivedPacket;
-        ////    string marker = string.Empty;
-        ////    try
-        ////    {
-        ////        marker = $"Get with ReceiveFrameString()";
-        ////        // processing the received packet, which is in json serialized form
-        ////        string receivedJson = responseSocket.ReceiveFrameString();
-
-        ////        marker = "Deserialize from Json";
-        ////        receivedPacket = JsonHelpers.DeserializeFromJsonString(receivedJson);
-
-        ////        return receivedPacket;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        throw new Exception($"Cannot Receive. Marker={marker}. Err={ex.Message}");
-        ////    }
-        ////}
-
-        /////// <summary>
-        /////// Serialize a list of name-value pairs into a json string
-        /////// Used for Requests and Responses
-        /////// </summary>
-        /////// <param name="PairList"></param>
-        /////// <returns></returns>
-        /////// <exception cref="Exception"></exception>
-        ////public static string PutSerializedList(List<NameValuePair> PairList)
-        ////{
-        ////    try
-        ////    {
-        ////        string jsonString = JsonConvert.SerializeObject(PairList);
-        ////        return jsonString;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        throw new Exception($"Cannot Serialize. Err={ex} Data=[{PairList}].");
-        ////    }
-        ////}
 
     } // IpcPacket
 

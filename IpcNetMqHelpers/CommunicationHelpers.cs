@@ -11,6 +11,7 @@ namespace IpcNetMq.IpcNetMqHelpers
     {
         /// <summary>
         /// Hash the server address into a legal mutex name of length not to exceed maxLength.
+        /// Remember, you can prepend Global\\ to work across all system processes.
         /// </summary>
         /// <param name="serverAddress"></param>
         /// <param name="maxLength"></param>
