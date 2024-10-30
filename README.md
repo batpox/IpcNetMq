@@ -13,9 +13,9 @@ and fills in the Response.
 Both the Request and Response strings are serialized json, and any values are strings. Json and string are common denominator
 that can be processed by any modern language.
 
-Everything revolves around the data packet called IpcPacket that is constructed to handle most cases that I have encountered in my career.
+Everything revolves around the information packet called IpcPacket that is constructed to handle most cases that I have encountered in my career.
 
-The header holds things like a version, timestamp, action name, and sequence number to help with communication errors.
+The header holds things like a schema-version, timestamp, action name, and sequence number to help with communication errors.
 Again, the Request string is a json-serialized list of name/value pairs (the 'in' arguments),
 and a Response string (also json-serialized list of name/value pairs).
 

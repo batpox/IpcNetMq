@@ -5,6 +5,13 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Copyright>Copyright October 2024 Daniel T. Houck</Copyright>
     <Description>An implementation of the NetMq REQ-REP demonstrating multiple language IPC calls.</Description>
+    <ApplicationIcon>Resources\IpcNetMq.ico</ApplicationIcon>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>IPC Using NetMq (ZeroMQ for .NET)</Title>
+    <PackageIcon>Resources/IpcNetMq.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>NetMq;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
+    <PackageReleaseNotes>Initial Release</PackageReleaseNotes>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <CodeAnalysisRuleSet>ManagedMinimumRules.ruleset</CodeAnalysisRuleSet>
@@ -34,11 +41,27 @@
     <None Remove="LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Resources\IpcNetMq.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="NetMQ" Version="4.0.1.13" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Documentation\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="Resources\IpcNetMq.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!-- <Exec Command="PowerShell -NoProfile -ExecutionPolicy Bypass -Command &quot;&amp; { $targetFolder = [System.IO.Path]::Combine([Environment]::GetFolderPath([Environment+SpecialFolder]::MyDocuments), 'IpcTests'); Write-Host 'Target Folder:' $targetFolder; if (Test-Path -Path $targetFolder) { Write-Host 'Target folder already exists.' } else { Write-Host 'Target folder does not exist. Creating...'; New-Item -ItemType Directory -Force -Path $targetFolder; Write-Host 'Target folder created.' }; foreach ($file in Get-ChildItem \&quot;$(TargetDir)*\&quot; -File) { Copy-Item -Path $file.FullName -Destination $targetFolder; Write-Host 'Copied ' $file.Name ' to ' $targetFolder } }&quot;&#xD;&#xA;&#xD;&#xA;" /> -->

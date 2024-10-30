@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>IpcNetMq</id>
+    <version>0.1.0</version>
+    <authors>Daniel-T-Houck</authors>
+	<icon>Resources/IpcNetMq.png</icon>
+    <description>A simple IPC framework on top of NetMQ.</description>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <dependencies>
+     <group targetFramework=".NETFramework4.8">
+        <dependency id="IpcNetMq" version="0.1.0" />
+        <dependency id="Newtonsoft.Json" version="13.0.3" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="IpcNetMq" version="0.1.0" />
+        <dependency id="Newtonsoft.Json" version="13.0.3" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="IpcNetMq" version="0.1.0" />
+        <dependency id="Newtonsoft.Json" version="13.0.3" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="bin\Debug\net48\IpcNetMq.dll" target="lib\net48\IpcNetMq.dll" />
+    <file src="bin\Debug\net6.0\IpcNetMq.dll" target="lib\net6.0\IpcNetMq.dll" />
+    <file src="bin\Debug\net8.0\IpcNetMq.dll" target="lib\net8.0\IpcNetMq.dll" />
+  </files>
+</package>

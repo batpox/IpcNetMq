@@ -11,6 +11,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestServerIpc", "Examples\T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IpcNetMq.Tests", "..\IpcNetMq.Tests\IpcNetMq.Tests.csproj", "{44CFA62D-3F21-4B5D-BF02-7275709444CA}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CFF6EBDC-C627-4799-88F0-B4411D154EBF}"
+	ProjectSection(SolutionItems) = preProject
+		IpcNetMq.nuspec = IpcNetMq.nuspec
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
