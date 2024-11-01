@@ -22,6 +22,7 @@ def do_get1(inPacket):
     
     ##logit("Handling do_get1")
     # Decode request as tuples of string,int
+    contextData = json.loads(inPacket.context_string)
     requestData = json.loads(inPacket.request_string)    
     responseData = json.loads(inPacket.response_string)
     
@@ -29,6 +30,7 @@ def do_get1(inPacket):
     
     # Get the expression key name and the value (which is an integer in this case)
     # Modify the value and then place the new value into the responseData.
+    simTime = getValueByName(contextData, 'SimTime')
     
     for item in requestData:
         try:
@@ -110,6 +112,8 @@ def do_get2(inPacket):
             status = f"FAIL:DecodeError={e}" 
     
     
+    
+    # traverse the request data
     for item in requestData:
         try:
             expr = item["name"]
@@ -193,6 +197,28 @@ def do_getSolarData(inPacket):
     outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, request_string=inPacket.request_string, response_string=responseString)
     return outPacket
 
+def getValueByName(pairData, name):
+    """
+    Returns the value associated with a given name in pairData, 
+    which can be a single dictionary or a list of dictionaries.
+
+    :param pairData: A dictionary with a single name/value pair or 
+                     a list of dictionaries with name/value pairs.
+    :param name: The name key to search for in pairData.
+    :return: The value associated with name, or None if not found.
+    """
+    # If pairData is a dictionary, check directly
+    if isinstance(pairData, dict):
+        return pairData.get(name, None)
+
+    # If pairData is a list, iterate through each dictionary
+    elif isinstance(pairData, list):
+        for pair in pairData:
+            if name in pair:
+                return pair[name]
+    
+    # Return None if name not found
+    return None
 
 # Search through the pair_data and upon finding target_name update with new value        
 def updateValueByName(pair_data, target_name, new_value):

@@ -94,6 +94,7 @@ namespace IpcNetMq
                 ClientSocket = new RequestSocket();
                 ClientSocket.Connect(ServerAddress);
 
+
                 return true;
             }
             catch (Exception ex)
@@ -141,7 +142,8 @@ namespace IpcNetMq
             try
             {
                 // Assuming the server replies immediately after processing the message
-                string responseJson = ClientSocket.ReceiveFrameString();
+                if (!ClientSocket.TryReceiveFrameString(TimeSpan.FromSeconds(5), out var responseJson))
+                    throw new Exception($"Could not receive from Server within the timeout");
 
                 // Deserialize the entire message
                 responsePacket = JsonHelpers.DeserializeFromJsonString(responseJson);
@@ -274,8 +276,7 @@ namespace IpcNetMq
             }
             catch (Exception ex)
             {
-                LogitStatic(client.LoggingLevel, $"Error: {ex.Message}");
-                return null;
+                throw new Exception($"Error: {ex.Message}");
             }
             finally
             {

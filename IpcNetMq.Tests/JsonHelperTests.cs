@@ -44,7 +44,7 @@ namespace IpcNetMq.Tests
             Assert.Equal("V241007", packet.Version);
             Assert.Equal("abc123", packet.ClientId);
             Assert.Equal(1, packet.SequenceNumber);
-            Assert.Equal("2024-01-01T00:00:00Z", packet.UtcTime);
+            Assert.Equal("2024-01-01T00:00:00Z", packet.WorldTime);
             Assert.Equal("TestAction", packet.Action);
             Assert.Equal("RequestData", packet.RequestString);
             Assert.Equal("ResponseData", packet.ResponseString);

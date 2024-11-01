@@ -45,8 +45,8 @@ namespace IpcNetMq
         /// <summary>
         /// The world time in "o" format
         /// </summary>
-        [JsonProperty("utc_time")]
-        public string UtcTime { get; set; } = DateTime.UtcNow.ToString("o");
+        [JsonProperty("world_time")]
+        public string WorldTime { get; set; } = DateTime.UtcNow.ToString("o");
 
         /// <summary>
         /// The name of the procedure/method
@@ -68,11 +68,12 @@ namespace IpcNetMq
         public string OptionsString { get; set; } = "";
 
         /// <summary>
-        /// Serialized json string containing user-information that you can employ
-        /// to customize a REQ-REP implementation, such as providing context.
+        /// Serialized json string containing context-information that you can employ
+        /// to customize a REQ-REP implementation. For example, including the
+        /// simulation time instead of having to pass it as arguments each time.
         /// </summary>
-        [JsonProperty("user_string")]
-        public string UserString { get; set; } = "";
+        [JsonProperty("context_string")]
+        public string ContextString { get; set; } = "";
 
         /// <summary>
         /// json string for request. Serialized list of name,value pairs.

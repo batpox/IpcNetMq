@@ -25,10 +25,13 @@
   <ItemGroup>
     <Compile Remove="%28old%29\**" />
     <Compile Remove="Examples\**" />
+    <Compile Remove="IpcNetMq.Tests\**" />
     <EmbeddedResource Remove="%28old%29\**" />
     <EmbeddedResource Remove="Examples\**" />
+    <EmbeddedResource Remove="IpcNetMq.Tests\**" />
     <None Remove="%28old%29\**" />
     <None Remove="Examples\**" />
+    <None Remove="IpcNetMq.Tests\**" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="IpcClientInternal.cs" />

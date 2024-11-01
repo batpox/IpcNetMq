@@ -2,23 +2,25 @@ import json
 import datetime
 
 class IpcPacket:
-    def __init__(self, version="V241007", sequence_number=0, sim_time=0.0, world_time=None, action=None, status=None, options_string=None, request_string=None, response_string=None):
+    def __init__(self, version="V241007",  client_id=None, sequence_number=0, world_time=None, action=None, status=None, options_string=None, context_string=None, request_string=None, response_string=None):
         self.version = version
+        self.client_id = client_id
         self.sequence_number = sequence_number
         self.world_time = world_time or datetime.datetime.now().isoformat()
         self.action = action
         self.status = status
         self.options_string = options_string
+        self.context_string = context_string
         self.request_string = request_string
         self.response_string = response_string
 
     def clone(self):
-        return IpcPacket(self.version, self.sequence_number, self.world_time, 
-                           self.action, self.options_string, self.request_string, self.response_string)
+        return IpcPacket(self.version, self.client_id, self.sequence_number, self.world_time, 
+                           self.action, self.options_string, self.context_string, self.request_string, self.response_string)
 
     def __str__(self):
-        return f"Version=[{self.version}] #=[{self.sequence_number}] SimTime={self.sim_time} WorldTime={self.world_time} " 
-        f" Action=[{self.action}] Options=[{self.options_string}] Request={self.request_string} Response={self.response_string}"
+        return f"Version=[{self.version}] #=[{self.sequence_number}] WorldTime={self.world_time} " 
+        f" Action=[{self.action}] Options=[{self.options_string}] Context=[{self.context_string}] Request={self.request_string} Response={self.response_string}"
 
     @staticmethod
     def serializeToJsonString(obj):

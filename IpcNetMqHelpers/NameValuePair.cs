@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace IpcNetMq
+namespace IpcNetMq.IpcNetMqHelpers
 {
     /// <summary>
     /// Holds the Name, Value-Hint, and Value (in string format)

@@ -11,12 +11,13 @@ using IpcNetMq.IpcNetMqHelpers;
 namespace TestIpcClient
 {
     /// <summary>
-    /// This is a test client. It connects to a NetMq server at ServerAddress and sends Request packets.
-    /// This generally emulates an IPC Step.
+    /// This is an example/test client. It connects to a NetMq server at ServerAddress and sends Request packets.
+    /// 
     /// </summary>
     public class Program
     {
-        public static async Task Main(string[] args)
+ //       public static async Task Main(string[] args)
+        public static void Main(string[] args)
         {
             string serverAddress = args.Length > 0 ? args[0] : "tcp://127.0.0.1:5555";
             string clientName = "TestIpcClient";
@@ -27,9 +28,7 @@ namespace TestIpcClient
             Console.WriteLine($"Client: Initializing Logger. Output={clientName}");
 
             Logger.Initialize(logFilepath);
-
             Logger.LogIt($"Run the Client workflow using the NetMQ runtime. Client={clientName}");
-
 
             bool useAsync = false;
             if (useAsync)
@@ -45,6 +44,11 @@ namespace TestIpcClient
             }
         }
 
+        /// <summary>
+        /// An example of how to create a client and invoke the "CallIpcMethod"
+        /// </summary>
+        /// <param name="clientName">Client friendly name. Used in logging.</param>
+        /// <param name="serverAddress">The location of the Ipc server</param>
         private static void RunClientTest(string clientName, string serverAddress)
         {
             using (var client = new IpcClientNetMq(clientName, serverAddress))
@@ -67,13 +71,16 @@ namespace TestIpcClient
 
                         try
                         {
+                            double simTime = 0.0;
                             while (true)
                             {
+                                simTime += 0.1;
                                 // Client builds the request here.
                                 var requestPacket = new IpcPacket
                                 {
                                     SequenceNumber = 0,
                                     Action = "do_get1",
+                                    ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
                                     ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", "")),
                                     RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
                                 };
@@ -89,7 +96,6 @@ namespace TestIpcClient
                         catch (Exception ex)
                         {
                             Logit($"Exception during conversation. Err={ex.Message}");
-
                         }
                     }
                     catch (Exception ex)

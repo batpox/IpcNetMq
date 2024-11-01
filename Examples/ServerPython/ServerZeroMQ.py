@@ -119,10 +119,10 @@ if __name__ == "__main__":
 #    server_address = r"tcp://127.0.0.1:5555"  # Example server_address, pass as argument or modify as needed
 
 
-    serverAddress = get_server_address()
+    #serverAddress = get_server_address()
     fullServerAddress = get_server_address()
     
 
-    print(f"Using server address={serverAddress} (full address={fullServerAddress})")
+    print(f"ServerZeroMQ using server full address={fullServerAddress})")
     
     runServerZeroMQ(fullServerAddress)

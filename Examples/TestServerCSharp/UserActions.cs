@@ -87,7 +87,7 @@ namespace IpcTestServer
 
             outPacket.Status = "Success";
             outPacket.RequestString = inPacket.RequestString;
-            outPacket.UtcTime = DateTime.UtcNow.ToString();
+            outPacket.WorldTime = DateTime.UtcNow.ToString();
 
             return outPacket;
         }
