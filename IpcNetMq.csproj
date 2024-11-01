@@ -8,8 +8,8 @@
     <ApplicationIcon>Resources\IpcNetMq.ico</ApplicationIcon>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>IPC Using NetMq (ZeroMQ for .NET)</Title>
-    <PackageIcon>Resources/IpcNetMq.png</PackageIcon>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- <PackageIcon>Resources\IpcNetMq.png</PackageIcon> -->
+    <!-- <PackageReadmeFile>README.md</PackageReadmeFile> -->
     <PackageTags>NetMq;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
     <PackageReleaseNotes>Initial Release</PackageReleaseNotes>
   </PropertyGroup>
@@ -41,11 +41,6 @@
     <None Remove="LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Resources\IpcNetMq.ico">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="NetMQ" Version="4.0.1.13" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
@@ -54,11 +49,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="README.md">
-      <Pack>True</Pack>
+      <Pack>False</Pack>
       <PackagePath>\</PackagePath>
     </None>
+    <None Update="Resources\IpcNetMq.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Include="Resources\IpcNetMq.png">
-      <Pack>True</Pack>
+      <Pack>False</Pack>
       <PackagePath>\</PackagePath>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

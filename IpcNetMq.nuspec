@@ -4,7 +4,7 @@
     <id>IpcNetMq</id>
     <version>0.1.0</version>
     <authors>Daniel-T-Houck</authors>
-	<icon>Resources/IpcNetMq.png</icon>
+	  <icon>Resources/IpcNetMq.png</icon>
     <description>A simple IPC framework on top of NetMQ.</description>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <license type="expression">MIT</license>
@@ -24,8 +24,8 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="bin\Debug\net48\IpcNetMq.dll" target="lib\net48\IpcNetMq.dll" />
-    <file src="bin\Debug\net6.0\IpcNetMq.dll" target="lib\net6.0\IpcNetMq.dll" />
-    <file src="bin\Debug\net8.0\IpcNetMq.dll" target="lib\net8.0\IpcNetMq.dll" />
+    <file src="bin\Release\net48\IpcNetMq.dll" target="lib\net48\IpcNetMq.dll" />
+    <file src="bin\Release\net6.0\IpcNetMq.dll" target="lib\net6.0\IpcNetMq.dll" />
+    <file src="bin\Release\net8.0\IpcNetMq.dll" target="lib\net8.0\IpcNetMq.dll" />
   </files>
 </package>
