@@ -2,7 +2,7 @@
 <package>
   <metadata>
     <id>IpcNetMq</id>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <authors>Daniel-T-Houck</authors>
 	  <icon>Resources/IpcNetMq.png</icon>
     <description>A simple IPC framework on top of NetMQ.</description>

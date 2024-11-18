@@ -62,10 +62,11 @@ def do_get1(inPacket):
             status = f"FAIL:DecodeError={e}" 
         
     # Create the returned packet
+    contextString = inPacket.context_string
     requestString = inPacket.request_string # we don't change anything
     responseString = json.dumps(responseData)
 
-    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, request_string=inPacket.request_string, response_string=responseString)
+    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, context_string=contextString, request_string=requestString, response_string=responseString)
     return outPacket
 
 # Update the value in a dictionary by name lookup
@@ -91,6 +92,7 @@ def do_get2(inPacket):
     
     logit("Handling do_get2")
     # Decode request as tuples of string,int
+    contextData = json.loads(inPacket.context_string)
     requestData = json.loads(inPacket.request_string)    
     responseData = json.loads(inPacket.response_string)
     
@@ -110,8 +112,6 @@ def do_get2(inPacket):
             
         except Exception as e:
             status = f"FAIL:DecodeError={e}" 
-    
-    
     
     # traverse the request data
     for item in requestData:
@@ -143,10 +143,9 @@ def do_get2(inPacket):
             status = f"FAIL:DecodeError={e}" 
         
     # Create the returned packet
-    requestString = inPacket.request_string # we don't change anything
     responseString = json.dumps(responseData)
 
-    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, request_string=inPacket.request_string, response_string=responseString)
+    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, context_string=inPacket.context_string, request_string=inPacket.context_string, response_string=responseString)
     return outPacket
 
 #========================================================================

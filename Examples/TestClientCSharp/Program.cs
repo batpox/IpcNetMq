@@ -62,12 +62,15 @@ namespace TestIpcClient
                 {
                     try
                     {
-                        Logit($"Attempting to connect Client={client.ClientName} to server address={serverAddress}...");
+                        Logit($"Attempting connect (Retries={retries}) Client={client.ClientName} to server address={serverAddress}...");
                         bool isOpened = client.OpenConnection(out connectionReason);
                         if (isOpened)
                         {
                             Logit("Connected to the server.");
+                            retries = 0;
                         }
+                        else
+                            retries++;
 
                         try
                         {
@@ -75,15 +78,28 @@ namespace TestIpcClient
                             while (true)
                             {
                                 simTime += 0.1;
+
+                                IpcPacket requestPacket;
                                 // Client builds the request here.
-                                var requestPacket = new IpcPacket
+                                if ( true ) // Example of literal build
                                 {
-                                    SequenceNumber = 0,
-                                    Action = "do_get1",
-                                    ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
-                                    ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", "")),
-                                    RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
-                                };
+                                    requestPacket = new IpcPacket
+                                    {
+                                        SequenceNumber = 0,
+                                        Action = "do_get1",
+                                        ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
+                                        ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", "")),
+                                        RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
+                                    };
+
+                                }
+                                else // Example of programmatic build
+                                {
+                                    List<NameValuePair> pairs = new List<NameValuePair>();
+                                    pairs.Add(new NameValuePair("SimTime", $"{simTime}"));
+                                    string contextString = JsonHelpers.SerializePairListToJsonString(pairs);
+                                    
+                                }
 
                                 IpcPacket responsePacket = client.CallIpcMethod(requestPacket);
                                 if (responsePacket != null)
