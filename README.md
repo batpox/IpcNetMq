@@ -33,7 +33,7 @@ For example, a C# program may need results from a python library (which is a vas
 python IpcNetMq server to allow this call, and not need to worry about bit-size, language versions, etc. or building
 wrappers around the calls.
 
-The downside is that you will sacrifice speed, but the less than 0.1 millisecond turnaround should be 
+The downside is that you will sacrifice speed, but less than 0.1 millisecond turnaround should be 
 sufficient for most applications.
 
 Cheers,

@@ -13,23 +13,31 @@ namespace IpcTestServer
     {
         private static readonly NetMQRuntime _runtime = new NetMQRuntime();
 
-        public static async Task Main(string[] args)
+//        public static async Task Main(string[] args)
+        public static void Main(string[] args)
         {
             string ipcAddress = args.Length > 0 ? args[0] : "tcp://127.0.0.1:5555";
-
             Console.WriteLine($"Test IPC Server: Using IPC Address={ipcAddress}");
 
             try
             {
-                var runtime = new NetMQRuntime();
+                var runtime = new NetMQ.NetMQRuntime();
+
+                var task = Task.Run( () => 
+                {
+                    Console.WriteLine("NetMQRuntime is working.");
+                    return Task.CompletedTask;
+                });
+
+                runtime.Run(task);
 
                 string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string logFilepath = Path.Combine(docPath, $"IpcServer-NetMq.log");
-                Console.WriteLine($"Server: Initializing Logger. Output={logFilepath}");
+                Console.WriteLine($"=== Server: Initializing Logger. Output={logFilepath}");
 
                 Logger.Initialize(logFilepath);
 
-                var server = new IpcServerNetMq("TestServer", ipcAddress);
+                var server = new IpcServerNetMqOld("TestServer", ipcAddress);
 
                 bool useAsync = false;
                 if (!useAsync)

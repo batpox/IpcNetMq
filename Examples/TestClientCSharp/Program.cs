@@ -57,6 +57,8 @@ namespace TestIpcClient
                 int maxDelay = delay * 60;
                 int retries = 0;
 
+                Logit($"*** NetMQ Client={client.ClientName} to server address={serverAddress}...");
+
                 string connectionReason = "";
                 while (true)
                 {
