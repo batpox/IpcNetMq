@@ -19,8 +19,6 @@ namespace IpcNetMq
     /// </summary>
     public class IpcClientNetMq : IIpcClient, IDisposable
     {
-        private static readonly ConcurrentDictionary<string, Mutex> Mutexes = new ConcurrentDictionary<string, Mutex>();
-        private readonly Mutex reqRepMutex;/// <summary>
 
         /// <summary>
         /// The friendly name of the Client
@@ -54,15 +52,109 @@ namespace IpcNetMq
         /// </summary>
         private int SequenceNbr { get; set; }
 
+        /// <summary>
+        /// Set when socke is (re)opened
+        /// </summary>
+        private int OwnerThreadId { get; set; }
+
         public IpcClientNetMq(string clientName, string serverAddress)
         {
-            string mutexName = CommunicationHelpers.HashServerAddress(serverAddress);
-            reqRepMutex = Mutexes.GetOrAdd(mutexName, _ => new Mutex(false));
-
             SequenceNbr = 0;
             ClientName = clientName;
             ServerAddress = serverAddress;
             ClientSocket = null;
+        }
+        /// <summary>
+        /// Used for the IO Dispatcher
+        /// </summary>
+        private class WorkItem
+        {
+            public IpcPacket Request;
+            public TaskCompletionSource<IpcPacket> Tcs;
+            public TimeSpan SendTimeout;
+            public TimeSpan ReceiveTimeout;
+        }
+
+        private readonly BlockingCollection<WorkItem> _queue =
+            new BlockingCollection<WorkItem>(new ConcurrentQueue<WorkItem>(), 1024);
+        private Thread _ioThread;
+        private CancellationTokenSource _ioCts;
+        private readonly TimeSpan _defaultSend = TimeSpan.FromSeconds(2);
+        private readonly TimeSpan _defaultRecv = TimeSpan.FromSeconds(5);
+
+        private readonly object _ioLock = new object();
+
+        // call this before first use
+        private void EnsureIoThread()
+        {
+            if (_ioThread != null) return;
+            lock (_ioLock)
+            {
+                _ioCts = new CancellationTokenSource();
+                _ioThread = new Thread(IoLoop) { IsBackground = true, Name = "IpcClientNetMq-IO" };
+                _ioThread.Start();
+            }
+        }
+
+        private void IoLoop()
+        {
+            try
+            {
+                string reason;
+                // open once here so the socket is owned by this thread
+                if (!EnsureSocketReady(out reason))
+                    throw new InvalidOperationException("Socket not ready: " + reason);
+
+                foreach (var wi in _queue.GetConsumingEnumerable(_ioCts.Token))
+                {
+                    try
+                    {
+                        // if the caller canceled this work, just drop it
+                        if (wi.Tcs.Task.IsCanceled) continue;
+
+                        // sequence inside this single-threaded loop
+                        SequenceNbr++;
+                        wi.Request.SequenceNumber = SequenceNbr;
+
+                        var json = JsonHelpers.SerializeToJsonString(wi.Request);
+
+                        // send (timeout + single reconnect)
+                        if (!TrySendJson(json, wi.SendTimeout, out reason))
+                        {
+                            if (!Reconnect(out reason) || !TrySendJson(json, wi.SendTimeout, out reason))
+                                throw new TimeoutException($"Send failed={reason}");
+                        }
+
+                        // receive
+                        string responseJson;
+                        if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out responseJson))
+                            throw new TimeoutException($"Receive timed out after={wi.ReceiveTimeout.TotalMilliseconds} ms.");
+
+                        var response = JsonHelpers.DeserializeFromJsonString(responseJson);
+
+                        if (response == null || response.SequenceNumber != wi.Request.SequenceNumber)
+                            throw new InvalidOperationException(
+                                $"Sequence mismatch: req={wi.Request.SequenceNumber}," 
+                                + $" resp={(response == null ? -1 : response.SequenceNumber)}");
+                        
+                        wi.Tcs.TrySetResult(response);
+                    }
+                    catch (Exception ex)
+                    {
+                        wi.Tcs.TrySetException(ex);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // shutting down
+            }
+            catch (Exception ex)
+            {
+                // fail any pending waiters if the loop blows up
+                while (_queue.TryTake(out var wi))
+                    wi.Tcs.TrySetException(ex);
+            }
         }
 
         /// <summary>
@@ -85,9 +177,10 @@ namespace IpcNetMq
                 marker = "Checking socket.";
                 if (ClientSocket != null)
                 {
-                    marker = "Checking if socket is disposed.";
-                    if (!ClientSocket.IsDisposed)
-                        ClientSocket.Disconnect(ServerAddress);
+                    try { ClientSocket.Disconnect(ServerAddress); } catch { }
+                    try { ClientSocket.Close(); } catch { }
+                    try { ClientSocket.Dispose(); } catch { }
+                    ClientSocket = null;
                 }
 
                 marker = "Creating new socket and connecting";
@@ -99,6 +192,7 @@ namespace IpcNetMq
                 ClientSocket.Options.ReceiveHighWatermark = 100;
 
                 ClientSocket.Connect(ServerAddress);
+                OwnerThreadId = Environment.CurrentManagedThreadId; // remember our thread
 
                 return true;
             }
@@ -107,9 +201,60 @@ namespace IpcNetMq
                 reason = $"IPC Client Connection={ClientName}. Marker={marker}. Err={ex.Message}";
                 return false;
             }
-
         }
 
+        private bool EnsureSocketReady(out string reason)
+        {
+            reason = "";
+            if (ClientSocket != null && !ClientSocket.IsDisposed)
+                return true;
+
+            if (!OpenConnection(out reason))
+                return false;
+
+            OwnerThreadId = Environment.CurrentManagedThreadId;
+            return true;
+        }
+
+        private bool Reconnect(out string reason)
+        {
+            reason = string.Empty;
+            CloseConnection(out _);
+            var ok = OpenConnection(out reason);
+            if (ok) 
+                OwnerThreadId = Environment.CurrentManagedThreadId;
+            return ok;
+        }
+
+        private bool TrySendJson(string json, TimeSpan sendTimeout, out string reason)
+        {
+            reason = "";
+
+            if (ClientSocket == null) { reason = "Socket is null."; return false; }
+            if (ClientSocket.IsDisposed) { reason = "Socket is disposed."; return false; }
+
+            // NetMQ sockets must be used on the thread they were created on
+            if (Environment.CurrentManagedThreadId != OwnerThreadId)
+            {
+                reason = "Socket used from a different thread than it was created on.";
+                return false;
+            }
+
+            bool ok;
+            try { ok = ClientSocket.TrySendFrame(sendTimeout, json); }
+            catch (Exception ex)
+            {
+                reason = $"Send Exception. Err={ex.Message}";
+                return false;
+            }
+
+            if (!ok)
+            {
+                reason = $"Send timed out after {sendTimeout.TotalMilliseconds} ms.";
+                return false;
+            }
+            return true;
+        }
 
         /// <summary>
         /// Close the connection, unbind if possible
@@ -210,7 +355,7 @@ namespace IpcNetMq
                 string requestJson = JsonHelpers.SerializeToJsonString(packet);
                 Logit($"Sending Packet. Data Bytes={requestJson.Length}. Sending...");
                 ClientSocket.SendFrame(requestJson);
-                Logit($"Sent Response. Serialized Length={requestJson.Length} bytes. ");
+                Logit($"Sent Request. Serialized Length={requestJson.Length} bytes. ");
 
                 return true;
             }
@@ -234,155 +379,58 @@ namespace IpcNetMq
             return Task.Run(() => PutRequestPacket(packet));
         }
 
-        /////// <summary>
-        /////// Send a serialized packet to the server in an async fashion.
-        /////// </summary>
-        /////// <param name="packet"></param>
-        /////// <returns></returns>
-        /////// <exception cref="Exception"></exception>
-        ////public bool PutRequestPacketAsync(IpcPacket packet)
-        ////{
-        ////    if (packet == null)
-        ////        throw new Exception($"Cannot send a null packet");
-
-        ////    string checkMessage = packet.Check();
-
-        ////    if (checkMessage != "OK")
-        ////        throw new Exception($"Invalid packet. Reason={checkMessage}");
-
-        ////    try
-        ////    {
-        ////        string requestJson = JsonHelpers.SerializeToJsonString(packet);
-        ////        Logit($"Sending Packet. Data Bytes={requestJson.Length}. Sending...");
-        ////        ClientSocket.SendFrame(requestJson);
-        ////        Logit($"Sent Packet. ");
-
-        ////        return true;
-        ////    }
-        ////    catch (Exception ex)
-        ////    {
-        ////        throw new Exception($"Cannot SendPacket. Name={ClientName}. Err={ex.Message}");
-        ////    }
-
-        ////}
-
-        /// <summary>
-        /// Run the client synchronously
-        /// </summary>
-        /// <param name="clientName"></param>
-        /// <param name="serverAddress"></param>
-        public static IpcPacket CallIpcMethod(IpcClientNetMq client, IpcPacket requestPacket)
-        {
-            try
-            {
-                client.SequenceNbr++;
-                requestPacket.SequenceNumber = client.SequenceNbr;
-
-                client.reqRepMutex.WaitOne();
-                client.PutRequestPacket(requestPacket);
-
-                IpcPacket responsePacket = client.GetResponsePacket();
-
-                LogitStatic(client.LoggingLevel, "Received response:");
-                LogitStatic(client.LoggingLevel, responsePacket.RequestString);
-
-                if ((requestPacket.SequenceNumber % 1000) == 0)
-                {
-                    Console.WriteLine($"{DateTime.Now:HH:mm:ss.ffff}: Processed SequenceNumber={requestPacket.SequenceNumber}");
-                }
-                return responsePacket;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error: {ex.Message}");
-            }
-            finally
-            {
-                client.reqRepMutex.ReleaseMutex();
-            }
-
-        }
-
-        /// <summary>
-        /// Run the client synchronously
-        /// </summary>
-        /// <param name="clientName"></param>
-        /// <param name="serverAddress"></param>
-        public IpcPacket CallIpcMethod( IpcPacket requestPacket)
-        {
-            if (requestPacket == null)
-                throw new Exception($"Cannot call IPC method if RequestPacket is null.");
-
-            try
-            {
-                IpcPacket responsePacket = CallIpcMethod(this, requestPacket);
-                return responsePacket;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"IPC call with RequestPacket:"
-                     + $" [Action={requestPacket.Action},Version={requestPacket.Version}] "
-                     + $" Err={ex.Message}");
-            }
-        }
-
         /// <summary>
         /// Doing an IPC REQ-REP asynchronously.
         /// Include the client object and the request packet.
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static async Task<IpcPacket> CallIpcMethodAsync(IpcClientNetMq client, IpcPacket requestPacket)
+        public Task<IpcPacket> CallIpcMethodAsync(IpcPacket request
+            ,TimeSpan? sendTimeout = null
+            ,TimeSpan? receiveTimeout = null
+            ,CancellationToken ct = default(CancellationToken) )
         {
-            try
+            if (request == null) throw new ArgumentNullException("request");
+
+            EnsureIoThread();
+
+            var tcs = new TaskCompletionSource<IpcPacket>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var wi = new WorkItem
             {
-                client.reqRepMutex.WaitOne();
+                Request = request,
+                Tcs = tcs,
+                SendTimeout = sendTimeout ?? _defaultSend,
+                ReceiveTimeout = receiveTimeout ?? _defaultRecv
+            };
 
-                client.SequenceNbr++;
-                requestPacket.SequenceNumber = client.SequenceNbr;
-
-                await client.PutRequestPacketAsync(requestPacket);
-                IpcPacket responsePacket = await client.GetResponsePacketAsync();
-
-                // Verify response correlates to request
-                if (responsePacket == null || responsePacket.SequenceNumber != requestPacket.SequenceNumber)
-                    throw new InvalidOperationException($"Sequence mismatch: request={requestPacket.SequenceNumber}, response={(responsePacket == null ? -1 : responsePacket.SequenceNumber)}");
-
-                LogitStatic(client.LoggingLevel, "Received response:");
-                LogitStatic(client.LoggingLevel, responsePacket.RequestString);
-
-                if ((requestPacket.SequenceNumber % 1000) == 0)
-                {
-                    Console.WriteLine($"{DateTime.Now:HH:mm:ss.ffff}: Processed SequenceNumber={requestPacket.SequenceNumber}");
-                }
-                return responsePacket;
-            }
-            catch (Exception ex)
+            // enqueue (respect cancellation)
+            if (ct.CanBeCanceled)
             {
-                LogitStatic(client.LoggingLevel, $"Error: {ex.Message}");
-                return null;
+                // if canceled before enqueue
+                if (ct.IsCancellationRequested) { tcs.TrySetCanceled(); return tcs.Task; }
+                ct.Register(() => tcs.TrySetCanceled());
             }
-            finally { client.reqRepMutex.ReleaseMutex(); }
+
+            try { _queue.Add(wi, ct); }
+            catch (OperationCanceledException) { tcs.TrySetCanceled(); }
+
+            return tcs.Task;
         }
 
-        /// <summary>
-        /// Doing an IPC REQ-REP asynchronously.
-        /// Include the client object and the request packet.
-        /// </summary>
-        /// <param name="address"></param>
-        /// <returns></returns>
-        public async Task<IpcPacket> CallIpcMethodAsync(IpcPacket requestPacket)
+        public IpcPacket CallIpcMethod(IpcPacket request, TimeSpan? sendTimeout = null, TimeSpan? receiveTimeout = null)
         {
-            IpcPacket responsePacket = await CallIpcMethodAsync(this, requestPacket);
-
-            return responsePacket;
+            // block on the single implementation
+            return CallIpcMethodAsync(request, sendTimeout, receiveTimeout).GetAwaiter().GetResult();
         }
 
 
         public void Logit(string message)
         {
-            if ( LoggingLevel > 0 ) 
+            if (LoggingLevel > 0)
+            {
                 Logger.LogIt(message);
+                Console.Write(message);
+            }
         }
         public static void LogitStatic(int loggingLevel, string message)
         {
@@ -390,14 +438,23 @@ namespace IpcNetMq
                 Logger.LogIt(message);
         }
 
+        private void StopIoThread()
+        {
+            try { _ioCts?.Cancel(); } catch { }
+            try { _queue?.CompleteAdding(); } catch { }
+            try { _ioThread?.Join(1500); } catch { }
+        }
+
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
                 if (disposing)
                 {
+                    StopIoThread();
                     // Dispose managed state (managed objects)
-                    NetMQConfig.Cleanup();
+                    CloseConnection(out _);
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
