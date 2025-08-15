@@ -37,7 +37,7 @@ namespace IpcTestServer
 
                 Logger.Initialize(logFilepath);
 
-                var server = new IpcServerNetMqOld("TestServer", ipcAddress);
+                var server = new IpcServerNetMqBeta("TestServer", ipcAddress);
 
                 bool useAsync = false;
                 if (!useAsync)

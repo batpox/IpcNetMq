@@ -36,7 +36,7 @@ namespace IpcNetMq
                 {
                     var reply = handleAction(packet);
                     if (reply != null)
-                        PutResponsePacket(reply);
+                        PutResponsePacketAsync(reply);
                     return Task.CompletedTask;
                 },
                 "Sync"
@@ -61,19 +61,20 @@ namespace IpcNetMq
             return JsonHelpers.DeserializeFromJsonString(json);
         }
 
-        public void PutResponsePacket(IpcPacket packet)
-        {
-            string json = JsonHelpers.SerializeToJsonString(packet);
-            ServerSocket.SendFrame(json);
-        }
-
         public Task PutResponsePacketAsync(IpcPacket packet)
         {
-            return Task.Run(() =>
-            {
-                string json = JsonHelpers.SerializeToJsonString(packet);
-                ServerSocket.SendFrame(json);
-            });
+            string json = JsonHelpers.SerializeToJsonString(packet);
+            ServerSocket.SendFrame(json);               // keep on the server loop thread
+            return Task.CompletedTask;                  // no Task.Run
         }
+
+        ////public Task PutResponsePacketAsync(IpcPacket packet)
+        ////{
+        ////    return Task.Run(() =>
+        ////    {
+        ////        string json = JsonHelpers.SerializeToJsonString(packet);
+        ////        ServerSocket.SendFrame(json);
+        ////    });
+        ////}
     }
 }

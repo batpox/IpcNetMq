@@ -9,7 +9,7 @@ namespace IpcNetMq.IpcNetMqHelpers
     public abstract class IpcServerBaseNetMq : IDisposable
     {
         private bool _disposed;
-        protected static readonly Mutex ReqRepMutex = new Mutex();
+        //protected static readonly Mutex ReqRepMutex = new Mutex();
 
         protected readonly string ServerAddress;
         protected ResponseSocket ServerSocket;
@@ -36,8 +36,7 @@ namespace IpcNetMq.IpcNetMqHelpers
             {
                 if (ServerSocket != null)
                 {
-                    ServerSocket.Dispose();
-                    ServerSocket = null;
+                    CloseSocket(out _);
                 }
 
                 ServerSocket = new ResponseSocket();
@@ -48,47 +47,54 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
             catch (Exception ex)
             {
-                reason = "OpenSocket failed: " + ex.Message;
+                reason = $"OpenSocket failed: Err={ex.Message}";
                 return false;
             }
         }
 
         protected virtual bool CloseSocket(out string reason)
         {
-            reason = null;
+            reason = "";
 
             try
             {
-                if (IsBound && ServerSocket != null)
+                if (IsBound && (ServerSocket != null))
                 {
-                    ServerSocket.Unbind(ServerAddress);
-                    ServerSocket.Dispose();
+                    try { ServerSocket.Unbind(ServerAddress); } catch { /* best-effort */ }
+                    try { ServerSocket.Dispose(); } catch { /* best-effort */ }
                     ServerSocket = null;
                     IsBound = false;
                 }
 
-                NetMQConfig.Cleanup();
                 return true;
             }
             catch (Exception ex)
             {
-                reason = "CloseSocket failed: " + ex.Message;
+                reason = $"CloseSocket failed. Err={ex.Message}";
                 return false;
             }
         }
 
+        /// <summary>Backward compatible overload </summary>
         protected Task RunServerLoopAsync(
             Func<Task<IpcPacket>> receiveFunc,
             Func<IpcPacket, Task> respondFunc,
-            string label)
+            string label ) =>
+             RunServerLoopAsync(receiveFunc, respondFunc, label, CancellationToken.None);
+        
+        protected Task RunServerLoopAsync(
+            Func<Task<IpcPacket>> receiveFunc,
+            Func<IpcPacket, Task> respondFunc,
+            string label,
+            CancellationToken ct)
         {
             return Task.Run(async () =>
             {
-                string reason = null;
+                string reason = "";
                 int retries = 0;
                 const int maxRetries = 10;
 
-                while (retries < maxRetries)
+                while (retries < maxRetries && !ct.IsCancellationRequested)
                 {
                     try
                     {
@@ -97,16 +103,15 @@ namespace IpcNetMq.IpcNetMqHelpers
                         if (OpenSocket(out reason))
                         {
                             retries = 0;
-                            Logit("[" + label + "] Bound to " + ServerAddress + ". Listening...");
+                            Logit($"[{label}] Bound to {ServerAddress}. Listening...");
 
                             bool keepRunning = true;
 
-                            while (keepRunning)
+                            while (keepRunning && !ct.IsCancellationRequested)
                             {
                                 try
                                 {
-                                    ReqRepMutex.WaitOne();
-
+                                    // Single-threaded loop, so all socket I/O stay on this thread
                                     var packet = await receiveFunc().ConfigureAwait(false);
                                     if (packet != null)
                                     {
@@ -115,31 +120,34 @@ namespace IpcNetMq.IpcNetMqHelpers
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logit("[" + label + "] Read error: " + ex.Message);
+                                    Logit($"[{label}] Read error={ex.Message}");
                                     keepRunning = false;
                                     CloseSocket(out reason);
                                 }
-                                finally
-                                {
-                                    ReqRepMutex.ReleaseMutex();
-                                }
-                            }
+                            } // while keeprunning
                         }
                         else
                         {
-                            Logit("[" + label + "] Retry failed: " + reason + ". Attempt " + retries);
+                            Logit($"[{label}] Retry failed. Reason={reason}. Attempts={retries}");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Logit("[" + label + "] Fatal: " + ex.Message);
+                        Logit($"[{label}] Fatal Err={ex.Message}");
                     }
 
                     CloseSocket(out reason);
-                    Logit("[" + label + "] Disconnected. Retrying...");
+
+                    if (!ct.IsCancellationRequested)
+                    {
+                        // capped linear backoff to avoid hot loop
+                        var delayMs = Math.Min(1000 * Math.Max(retries, 1), 5000);
+                        Logit($"[{label}] Disconnected. Retrying in {delayMs} ms...");
+                        try { await Task.Delay(delayMs, ct).ConfigureAwait(false); } catch { }
+                    }
                 }
 
-                Logit("[" + label + "] Exiting after " + maxRetries + " retries.");
+                Logit($"[{label}] Exiting after Retries= {maxRetries}.");
             });
         }
 
@@ -151,26 +159,19 @@ namespace IpcNetMq.IpcNetMqHelpers
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed)
+            if (_disposed) return;
+
+            if (disposing)
             {
-                if (disposing)
-                {
-                    if (ServerSocket != null)
-                    {
-                        ServerSocket.Dispose();
-                        ServerSocket = null;
-                    }
+                try { CloseSocket(out _); } catch { /* best-effort */ }
 
-                    if (Runtime != null)
-                    {
-                        Runtime.Dispose();
-                    }
+                try { Runtime.Dispose(); } catch { /* best-effort */ }
 
-                    NetMQConfig.Cleanup();
-                }
-
-                _disposed = true;
+                // Global cleanup once, on dispose
+                try { NetMQConfig.Cleanup(); } catch { /* best-effort */ }
             }
+
+            _disposed = true;
         }
     }
 }

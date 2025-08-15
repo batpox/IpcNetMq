@@ -11,7 +11,7 @@ using System.Threading;
 
 namespace IpcNetMq
 {
-    public class IpcServerNetMqOld : IIpcServer, IDisposable
+    public class IpcServerNetMqBeta : IIpcServer, IDisposable
     {
         /// <summary>
         /// Static mutex assumes only a single server
@@ -51,11 +51,11 @@ namespace IpcNetMq
 
         //private IpcConnectionNetMq? _ipcConnection;
 
-        public IpcServerNetMqOld()
+        public IpcServerNetMqBeta()
         {
         }
 
-        public IpcServerNetMqOld(string serverName, string serverAddress)
+        public IpcServerNetMqBeta(string serverName, string serverAddress)
         {
             string mutexName = CommunicationHelpers.HashServerAddress(serverName);
             ReqRepMutex = new Mutex(false, mutexName);

@@ -4,6 +4,7 @@ using NetMQ;
 using NetMQ.Sockets;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,7 +19,8 @@ namespace IpcNetMq
     /// </summary>
     public class IpcClientNetMq : IIpcClient, IDisposable
     {
-        private static Mutex ReqRepMutex { get; set; }
+        private static readonly ConcurrentDictionary<string, Mutex> Mutexes = new ConcurrentDictionary<string, Mutex>();
+        private readonly Mutex reqRepMutex;/// <summary>
 
         /// <summary>
         /// The friendly name of the Client
@@ -39,7 +41,6 @@ namespace IpcNetMq
         /// <summary>
         /// Track the binding
         /// </summary>
-        private bool _isBound;
         private bool disposedValue;
 
         /// <summary>
@@ -56,12 +57,11 @@ namespace IpcNetMq
         public IpcClientNetMq(string clientName, string serverAddress)
         {
             string mutexName = CommunicationHelpers.HashServerAddress(serverAddress);
-            ReqRepMutex = new Mutex(false, mutexName);
+            reqRepMutex = Mutexes.GetOrAdd(mutexName, _ => new Mutex(false));
 
             SequenceNbr = 0;
             ClientName = clientName;
             ServerAddress = serverAddress;
-            _isBound = false;
             ClientSocket = null;
         }
 
@@ -92,8 +92,13 @@ namespace IpcNetMq
 
                 marker = "Creating new socket and connecting";
                 ClientSocket = new RequestSocket();
-                ClientSocket.Connect(ServerAddress);
 
+                // Recommended socket options to avoid stalls
+                ClientSocket.Options.Linger = TimeSpan.Zero;
+                ClientSocket.Options.SendHighWatermark = 100;
+                ClientSocket.Options.ReceiveHighWatermark = 100;
+
+                ClientSocket.Connect(ServerAddress);
 
                 return true;
             }
@@ -222,31 +227,44 @@ namespace IpcNetMq
         /// <param name="packet"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public bool PutRequestPacketAsync(IpcPacket packet)
+
+        public Task<bool> PutRequestPacketAsync(IpcPacket packet)
         {
-            if (packet == null)
-                throw new Exception($"Cannot send a null packet");
-
-            string checkMessage = packet.Check();
-
-            if (checkMessage != "OK")
-                throw new Exception($"Invalid packet. Reason={checkMessage}");
-
-            try
-            {
-                string requestJson = JsonHelpers.SerializeToJsonString(packet);
-                Logit($"Sending Packet. Data Bytes={requestJson.Length}. Sending...");
-                ClientSocket.SendFrame(requestJson);
-                Logit($"Sent Packet. ");
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Cannot SendPacket. Name={ClientName}. Err={ex.Message}");
-            }
-
+            // Offload the synchronous send to the thread pool to avoid blocking the caller.
+            return Task.Run(() => PutRequestPacket(packet));
         }
+
+        /////// <summary>
+        /////// Send a serialized packet to the server in an async fashion.
+        /////// </summary>
+        /////// <param name="packet"></param>
+        /////// <returns></returns>
+        /////// <exception cref="Exception"></exception>
+        ////public bool PutRequestPacketAsync(IpcPacket packet)
+        ////{
+        ////    if (packet == null)
+        ////        throw new Exception($"Cannot send a null packet");
+
+        ////    string checkMessage = packet.Check();
+
+        ////    if (checkMessage != "OK")
+        ////        throw new Exception($"Invalid packet. Reason={checkMessage}");
+
+        ////    try
+        ////    {
+        ////        string requestJson = JsonHelpers.SerializeToJsonString(packet);
+        ////        Logit($"Sending Packet. Data Bytes={requestJson.Length}. Sending...");
+        ////        ClientSocket.SendFrame(requestJson);
+        ////        Logit($"Sent Packet. ");
+
+        ////        return true;
+        ////    }
+        ////    catch (Exception ex)
+        ////    {
+        ////        throw new Exception($"Cannot SendPacket. Name={ClientName}. Err={ex.Message}");
+        ////    }
+
+        ////}
 
         /// <summary>
         /// Run the client synchronously
@@ -260,7 +278,7 @@ namespace IpcNetMq
                 client.SequenceNbr++;
                 requestPacket.SequenceNumber = client.SequenceNbr;
 
-                ReqRepMutex.WaitOne();
+                client.reqRepMutex.WaitOne();
                 client.PutRequestPacket(requestPacket);
 
                 IpcPacket responsePacket = client.GetResponsePacket();
@@ -280,7 +298,7 @@ namespace IpcNetMq
             }
             finally
             {
-                ReqRepMutex.ReleaseMutex();
+                client.reqRepMutex.ReleaseMutex();
             }
 
         }
@@ -292,9 +310,20 @@ namespace IpcNetMq
         /// <param name="serverAddress"></param>
         public IpcPacket CallIpcMethod( IpcPacket requestPacket)
         {
-            IpcPacket responsePacket =  CallIpcMethod(this, requestPacket);
+            if (requestPacket == null)
+                throw new Exception($"Cannot call IPC method if RequestPacket is null.");
 
-            return responsePacket;
+            try
+            {
+                IpcPacket responsePacket = CallIpcMethod(this, requestPacket);
+                return responsePacket;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"IPC call with RequestPacket:"
+                     + $" [Action={requestPacket.Action},Version={requestPacket.Version}] "
+                     + $" Err={ex.Message}");
+            }
         }
 
         /// <summary>
@@ -307,13 +336,17 @@ namespace IpcNetMq
         {
             try
             {
-                ReqRepMutex.WaitOne();
+                client.reqRepMutex.WaitOne();
 
                 client.SequenceNbr++;
                 requestPacket.SequenceNumber = client.SequenceNbr;
 
-                client.PutRequestPacketAsync(requestPacket);
+                await client.PutRequestPacketAsync(requestPacket);
                 IpcPacket responsePacket = await client.GetResponsePacketAsync();
+
+                // Verify response correlates to request
+                if (responsePacket == null || responsePacket.SequenceNumber != requestPacket.SequenceNumber)
+                    throw new InvalidOperationException($"Sequence mismatch: request={requestPacket.SequenceNumber}, response={(responsePacket == null ? -1 : responsePacket.SequenceNumber)}");
 
                 LogitStatic(client.LoggingLevel, "Received response:");
                 LogitStatic(client.LoggingLevel, responsePacket.RequestString);
@@ -329,7 +362,7 @@ namespace IpcNetMq
                 LogitStatic(client.LoggingLevel, $"Error: {ex.Message}");
                 return null;
             }
-            finally { ReqRepMutex.ReleaseMutex(); }
+            finally { client.reqRepMutex.ReleaseMutex(); }
         }
 
         /// <summary>

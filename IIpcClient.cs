@@ -14,6 +14,7 @@ namespace IpcNetMq
         Task<IpcPacket> GetResponsePacketAsync();
 
         bool PutRequestPacket(IpcPacket packet);
-        bool PutRequestPacketAsync(IpcPacket packet);
+        //bool PutRequestPacketAsync(IpcPacket packet);
+        Task<bool> PutRequestPacketAsync(IpcPacket packet);
     }
 }
