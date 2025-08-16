@@ -2,12 +2,8 @@
 using IpcNetMqHelpers;
 using NetMQ;
 using NetMQ.Sockets;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -286,6 +282,7 @@ namespace IpcNetMq
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
+        [Obsolete]
         public IpcPacket GetResponsePacket()
         {
             IpcPacket responsePacket;
@@ -310,6 +307,7 @@ namespace IpcNetMq
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
+        [Obsolete]
         public async Task<IpcPacket> GetResponsePacketAsync()
         {
             IpcPacket responsePacket = null;
@@ -340,6 +338,7 @@ namespace IpcNetMq
         /// <param name="packet"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
+        [Obsolete]
         public bool PutRequestPacket(IpcPacket packet)
         {
             if (packet == null)
@@ -372,7 +371,7 @@ namespace IpcNetMq
         /// <param name="packet"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-
+        [Obsolete]
         public Task<bool> PutRequestPacketAsync(IpcPacket packet)
         {
             // Offload the synchronous send to the thread pool to avoid blocking the caller.

@@ -1,138 +1,150 @@
-﻿using Newtonsoft.Json;
-using IpcNetMq;
-using IpcNetMqHelpers;
-using NetMQ;
+﻿// Program.cs — TestIpcClient (dispatcher-only usage)
+using System;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
-using NetMQ.Sockets;
-using System.Net;
-using System.ServiceModel;
-using IpcNetMq.IpcNetMqHelpers;
+using System.Threading.Tasks;
+using IpcNetMq;
+using IpcNetMqHelpers;          // JsonHelpers, Logger
+using IpcNetMq.IpcNetMqHelpers; // NameValuePair if you use it
 
 namespace TestIpcClient
 {
-    /// <summary>
-    /// This is an example/test client. It connects to a NetMq server at ServerAddress and sends Request packets.
-    /// 
-    /// </summary>
-    public class Program
+    public static class Program
     {
- //       public static async Task Main(string[] args)
-        public static void Main(string[] args)
+        public static int Main(string[] args)
+            => RunAsync(args).GetAwaiter().GetResult();
+
+        private static async Task<int> RunAsync(string[] args)
         {
-            string serverAddress = args.Length > 0 ? args[0] : "tcp://127.0.0.1:5555";
+            // ----------------- Config -----------------
+            string serverAddress = (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
+                ? args[0]
+                : "tcp://127.0.0.1:5555";
+
             string clientName = "TestIpcClient";
-            Console.WriteLine($"Client={clientName}: Using Server address={serverAddress}");
+            var sendTimeout = TimeSpan.FromSeconds(2);
+            var receiveTimeout = TimeSpan.FromSeconds(5);
+            int pollIntervalMs = 1;   // how often to send a request
+            int reportIntervalPackets = 10_000;   // after how many packets to log
+            int backoffMs = 250;   // on error/timeout
 
-            string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            string logFilepath = Path.Combine(docPath, $"IpcClient-{clientName}.log");
-            Console.WriteLine($"Client: Initializing Logger. Output={clientName}");
+            Console.WriteLine(
+                  $"Client={clientName}: Using Server address={serverAddress}");
 
+            // Init logger to Documents
+            var docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var logFilepath = Path.Combine(docPath, $"IpcClient-{clientName}.log");
+            Console.WriteLine(
+                  $"Client: Initializing Logger. Output={logFilepath}");
             Logger.Initialize(logFilepath);
-            Logger.LogIt($"Run the Client workflow using the NetMQ runtime. Client={clientName}");
 
-            bool useAsync = false;
-            if (useAsync)
+            // Ctrl+C support
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (s, e) =>
             {
-                using (var runtime = new NetMQRuntime())
+                e.Cancel = true;
+                cts.Cancel();
+                Console.WriteLine("Cancel requested…");
+            };
+
+            // ----------------- Client (dispatcher) -----------------
+            using var client = new IpcClientNetMq(clientName, serverAddress)
+            {
+                LoggingLevel = 1
+            };
+            // NOTE: Do NOT call OpenConnection(); the dispatcher opens/reopens as needed.
+
+            // Optional: log actual DLL loaded to catch stale copies
+            try
+            {
+                var asm = typeof(IpcClientNetMq).Assembly;
+                var loc = asm.Location;
+                var ver = asm.GetName().Version;
+                Logit(
+                      $"IpcNetMq loaded from: {loc} "
+                    + $"AssemblyVersion={ver}");
+            }
+            catch { /* best effort */ }
+
+            Logit(
+                  $"*** Dispatcher client ready. "
+                + $"SendTimeout={sendTimeout.TotalMilliseconds}ms, "
+                + $"RecvTimeout={receiveTimeout.TotalMilliseconds}ms, "
+                + $"Interval={pollIntervalMs}ms");
+
+            // ----------------- Poll loop -----------------
+            double simTime = 0.0;
+            long packetsSent = 0;
+            var sw = Stopwatch.StartNew();
+
+            while (!cts.IsCancellationRequested)
+            {
+                try
                 {
-                    //runtime.Run(RunClientTestAsync(clientName, serverAddress));
+                    simTime += pollIntervalMs / 1000.0;
+
+                    // Build one request (dispatcher will assign SequenceNumber)
+                    var request = new IpcPacket
+                    {
+                        Action = "do_get1", // or "do_getStrokeData" per your server
+                        ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
+                        RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
+                        ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", ""))
+                    };
+
+                    var response =
+                        await client.CallIpcMethodAsync(
+                            request,
+                            sendTimeout: sendTimeout,
+                            receiveTimeout: receiveTimeout,
+                            ct: cts.Token);
+
+                    packetsSent++;
+
+                    if (response != null && ((packetsSent % reportIntervalPackets) == 0) )
+                    {
+                        sw.Stop();
+
+                        double avgTripMs = sw.ElapsedMilliseconds / (double)packetsSent;
+                        Logit(
+                              $"OK seq={response.SequenceNumber} "
+                            + $"action={response.Action} "
+                            + $"trip avg={avgTripMs:0.00} ms "
+                            + $"respLen={(response.ResponseString?.Length ?? 0)}");
+                        // TODO: parse/use response.ResponseString if desired
+                        packetsSent = 0;
+                        sw = Stopwatch.StartNew();
+                    }
                 }
-            }
-            else
-            {
-                RunClientTest(clientName, serverAddress);
-            }
-        }
-
-        /// <summary>
-        /// An example of how to create a client and invoke the "CallIpcMethod"
-        /// </summary>
-        /// <param name="clientName">Client friendly name. Used in logging.</param>
-        /// <param name="serverAddress">The location of the Ipc server</param>
-        private static void RunClientTest(string clientName, string serverAddress)
-        {
-            using (var client = new IpcClientNetMq(clientName, serverAddress))
-            {
-                int delay = 1000; // starting delay, in milliseconds
-                int maxDelay = delay * 60;
-                int retries = 0;
-
-                Logit($"*** NetMQ Client={client.ClientName} to server address={serverAddress}...");
-
-                string connectionReason = "";
-                while (true)
+                catch (OperationCanceledException)
                 {
-                    try
-                    {
-                        Logit($"Attempting connect (Retries={retries}) Client={client.ClientName} to server address={serverAddress}...");
-                        bool isOpened = client.OpenConnection(out connectionReason);
-                        if (isOpened)
-                        {
-                            Logit("Connected to the server.");
-                            retries = 0;
-                        }
-                        else
-                            retries++;
+                    break;
+                }
+                catch (TimeoutException tex)
+                {
+                    // Expected during debugging pauses; the dispatcher resets the REQ socket for us.
+                    Logit($"Timeout: {tex.Message}");
+                    await Task.Delay(backoffMs, cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    Logit(
+                          $"Error: {ex.GetType().Name}: {ex.Message}");
+                    await Task.Delay(backoffMs, cts.Token);
+                }
 
-                        try
-                        {
-                            double simTime = 0.0;
-                            while (true)
-                            {
-                                simTime += 0.1;
+                //try { await Task.Delay(pollIntervalMs, cts.Token); } catch { break; }
+            }
 
-                                IpcPacket requestPacket;
-                                // Client builds the request here.
-                                if ( true ) // Example of literal build
-                                {
-                                    requestPacket = new IpcPacket
-                                    {
-                                        SequenceNumber = 0,
-                                        Action = "do_get1",
-                                        ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
-                                        ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", "")),
-                                        RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
-                                    };
-
-                                }
-                                else // Example of programmatic build
-                                {
-                                    List<NameValuePair> pairs = new List<NameValuePair>();
-                                    pairs.Add(new NameValuePair("SimTime", $"{simTime}"));
-                                    string contextString = JsonHelpers.SerializePairListToJsonString(pairs);
-                                    
-                                }
-
-                                IpcPacket responsePacket = client.CallIpcMethod(requestPacket);
-                                if (responsePacket != null)
-                                {
-                                    // Client processes the result here
-                                    Logit($"Response={responsePacket}");
-                                }
-                            } // while making calls
-                        }
-                        catch (Exception ex)
-                        {
-                            Logit($"Exception during conversation. Err={ex.Message}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Logit($"Error={ex.Message}");
-                    }
-                    client.CloseConnection(out connectionReason);
-                } // while connecting
-            } // created client
-        } // RunClientTest
+            Logit("Client exiting.");
+            return 0;
+        }
 
         private static void Logit(string message)
         {
             Logger.LogIt(message);
-            message = $"[{DateTime.Now:HH:mm:ss.fff}]: {message}";
-            Console.WriteLine(message);
-
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
         }
-
     }
-
 }

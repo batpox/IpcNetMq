@@ -12,7 +12,9 @@
     <!-- <PackageIcon>Resources\IpcNetMq.png</PackageIcon> -->
     <!-- <PackageReadmeFile>README.md</PackageReadmeFile> -->
     <PackageTags>NetMq;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
-    <PackageReleaseNotes>Initial Release</PackageReleaseNotes>
+    <PackageReleaseNotes>Updates to the client robustness. Timings are at 500 microSeconds RTT</PackageReleaseNotes>
+    <AssemblyVersion>25.8.15.0</AssemblyVersion>
+    <FileVersion>25.8.15.0</FileVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <CodeAnalysisRuleSet>ManagedMinimumRules.ruleset</CodeAnalysisRuleSet>
