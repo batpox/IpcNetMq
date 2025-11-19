@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>25.11.18</Version>
+    <Version>25.11.19</Version>
     <Authors>batpox</Authors>
     <Company>batpox</Company>
     <TargetFrameworks>net48;net6.0;net8.0</TargetFrameworks>
@@ -21,8 +21,8 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <AssemblyVersion>25.8.15.0</AssemblyVersion>
-    <FileVersion>25.8.15.0</FileVersion>
+    <AssemblyVersion>25.11.19.0</AssemblyVersion>
+    <FileVersion>25.11.19.0</FileVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <CodeAnalysisRuleSet>ManagedMinimumRules.ruleset</CodeAnalysisRuleSet>
