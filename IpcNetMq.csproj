@@ -3,7 +3,7 @@
     <Version>25.11.19</Version>
     <Authors>batpox</Authors>
     <Company>batpox</Company>
-    <TargetFrameworks>net48;net6.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
     <RepositoryType>git</RepositoryType>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
