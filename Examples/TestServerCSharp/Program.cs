@@ -44,7 +44,7 @@ namespace IpcTestServer
         }
 
 #else
-        public static async Task Main(string[] args)
+        public static void Main(string[] args)
         {
             string ipcAddress = args.Length > 0 ? args[0] : "tcp://127.0.0.1:5555";
             Console.WriteLine($"Test Async IPC Server. The server waits for a request from an IpcNetMQ client.");
@@ -53,16 +53,6 @@ namespace IpcTestServer
 
             try
             {
-                var runtime = new NetMQ.NetMQRuntime();
-
-                var task = Task.Run(() =>
-                {
-                    Console.WriteLine("NetMQRuntime is working.");
-                    return Task.CompletedTask;
-                });
-
-                runtime.Run(task);
-
                 string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string logFilepath = Path.Combine(docPath, $"IpcServer-NetMq.log");
                 Console.WriteLine($"=== Server: Initializing Logger. Output={logFilepath}");
@@ -70,8 +60,11 @@ namespace IpcTestServer
                 Logger.Initialize(logFilepath);
 
                 var server = new IpcServerNetMq("TestServer", ipcAddress);
-                await server.StartIpcServerAsync(UserActions.HandleAction);
 
+                using var runtime = new NetMQ.NetMQRuntime();
+
+                // Run the server task directly (no StartNew)
+                runtime.Run(server.StartIpcServerAsync(UserActions.HandleAction));
             }
             catch (Exception ex)
             {

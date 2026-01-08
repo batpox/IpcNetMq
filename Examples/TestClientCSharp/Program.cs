@@ -1,12 +1,8 @@
 ﻿// Program.cs — TestIpcClient (dispatcher-only usage)
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using IpcNetMq;
-using IpcNetMqHelpers;          // JsonHelpers, Logger
 using IpcNetMq.IpcNetMqHelpers; // NameValuePair if you use it
+using IpcNetMqHelpers;          // JsonHelpers, Logger
+using System.Diagnostics;
 
 namespace TestIpcClient
 {
