@@ -15,17 +15,24 @@ namespace IpcNetMq
             ServerName = name;
         }
 
-        public void StartIpcServerAsync(Func<IpcPacket, IpcPacket> handleAction)
+        /// <summary>
+        /// Full Async version. A sample use of this could be:
+        /// var server = new IpcServerNetMq("TestServer", ipcAddress);
+        /// await server.StartIpcServerAsync(UserActions.HandleAction);
+        /// </summary>
+        /// <param name="handleAction"></param>
+        public Task StartIpcServerAsync(Func<IpcPacket, IpcPacket> handleAction)
         {
-            var serverTask = RunServerLoopAsync(
+            var returnValue = RunServerLoopAsync(
                     GetRequestPacketAsync,
                     async packet =>
                     {
                         var reply = handleAction(packet);
                         if (reply != null)
-                            await PutResponsePacketAsync(reply).ConfigureAwait(false);
+                            await PutReplyPacketAsync(reply).ConfigureAwait(false);
                     },
                     "Async");
+            return returnValue;
         }
 
         public void RunIpcServerLoop(Func<IpcPacket, IpcPacket> handleAction)
@@ -36,7 +43,7 @@ namespace IpcNetMq
                 {
                     var reply = handleAction(packet);
                     if (reply != null)
-                        PutResponsePacketAsync(reply);
+                        PutReplyPacketAsync(reply);
                     return Task.CompletedTask;
                 },
                 "Sync"
@@ -61,20 +68,12 @@ namespace IpcNetMq
             return JsonHelpers.DeserializeFromJsonString(json);
         }
 
-        public Task PutResponsePacketAsync(IpcPacket packet)
+        public Task PutReplyPacketAsync(IpcPacket packet)
         {
             string json = JsonHelpers.SerializeToJsonString(packet);
             ServerSocket.SendFrame(json);               // keep on the server loop thread
             return Task.CompletedTask;                  // no Task.Run
         }
 
-        ////public Task PutResponsePacketAsync(IpcPacket packet)
-        ////{
-        ////    return Task.Run(() =>
-        ////    {
-        ////        string json = JsonHelpers.SerializeToJsonString(packet);
-        ////        ServerSocket.SendFrame(json);
-        ////    });
-        ////}
     }
 }

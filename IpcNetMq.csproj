@@ -1,28 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>25.11.19</Version>
-    <Authors>batpox</Authors>
-    <Company>batpox</Company>
+    <Version>26.1.6</Version>
+    <Authors>Daniel T. Houck</Authors>
+    <Company>batpox/metalBlender</Company>
     <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
     <RepositoryType>git</RepositoryType>
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <Copyright>Copyright 2024-2025 Daniel T. Houck</Copyright>
-    <Description>An implementation of the NetMq REQ-REP demonstrating multiple language IPC calls.</Description>
+    <Copyright>Copyright 2024-2026 Daniel T. Houck</Copyright>
+    <Description>An implementation of the NetMq REQ-REP (Request/Reply) demonstrating multiple language IPC calls.</Description>
     <ApplicationIcon>Resources\IpcNetMq.ico</ApplicationIcon>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>IPC Using NetMq (ZeroMQ for .NET)</Title>
+    <Title>IPC (REQuest/REPly) Using NetMq (ZeroMQ for .NET)</Title>
     <!-- <PackageIcon>Resources\IpcNetMq.png</PackageIcon> -->
     <!-- <PackageReadmeFile>README.md</PackageReadmeFile> -->
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageTags>NetMq;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
+    <PackageTags>NetMQ;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
     <PackageReleaseNotes>Updates to the client robustnes. Removed unneeded GDI reference. Timings are at 500 microSeconds RTT</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression> <!-- or whatever you use -->
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <AssemblyVersion>25.11.19.0</AssemblyVersion>
-    <FileVersion>25.11.19.0</FileVersion>
+    <AssemblyVersion>26.1.6.0</AssemblyVersion>
+    <FileVersion>26.1.6.0</FileVersion>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <CodeAnalysisRuleSet>ManagedMinimumRules.ruleset</CodeAnalysisRuleSet>
@@ -60,7 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="README.md">
-      <Pack>False</Pack>
+      <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
     <None Update="Resources\IpcNetMq.ico">

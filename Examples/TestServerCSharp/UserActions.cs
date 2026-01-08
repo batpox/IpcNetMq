@@ -14,11 +14,11 @@ namespace IpcTestServer
     {
 
         /// <summary>
-        /// The IpcPacket contains name-value pairs from the Request and for the Response.
+        /// The IpcPacket contains name-value pairs from the Request and for the Reply.
         /// The Names in the Request are Expression names. The Values are always string,so
         /// the decoding/encoding type is only implicitly known between the client/server.
         /// Most methods get the expressions and put results back in to the States.
-        /// In this example method the number of pairs in both Expressions (Request) and States (Response)
+        /// In this example method the number of pairs in both Expressions (Request) and States (Reply)
         /// are the same, but it's not a requirement.
         /// </summary>
         /// <param name="inPacket"></param>
@@ -27,23 +27,23 @@ namespace IpcTestServer
         {
             // Implement your action logic here
 
-            // Deserialize pairs holding request 'input' data and response template.
+            // Deserialize pairs holding request 'input' data and reply template.
             List<NameValuePair> requestList = JsonHelpers.DeserializePairListFromJsonString<NameValuePair>(inPacket.RequestString);
-            List<NameValuePair> responseList = JsonHelpers.DeserializePairListFromJsonString<NameValuePair>(inPacket.ResponseString);
+            List<NameValuePair> replyList = JsonHelpers.DeserializePairListFromJsonString<NameValuePair>(inPacket.ReplyString);
 
-            //... and create a list for the 'output' Response values.
-            List<NameValuePair> outResponseList = new List<NameValuePair>();
+            //... and create a list for the 'output' Reply values.
+            List<NameValuePair> outReplyList = new List<NameValuePair>();
 
             int index = 0;
             foreach (NameValuePair inPair in requestList)
             {
                 NameValuePair outPair;
 
-                // Use the response list to get default values, otherwise
+                // Use the reply list to get default values, otherwise
                 // use the requestList
-                if (index > 0 && (index < responseList.Count))
+                if (index > 0 && (index < replyList.Count))
                 {
-                    outPair = responseList[index];
+                    outPair = replyList[index];
                 }
                 else
                     outPair = new NameValuePair(inPair);
@@ -73,7 +73,7 @@ namespace IpcTestServer
                             break;
                     }
                 }
-                outResponseList.Add(outPair);
+                outReplyList.Add(outPair);
 
                 index++;
             }
@@ -82,7 +82,7 @@ namespace IpcTestServer
             {
                 SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
-                ResponseString = JsonHelpers.SerializePairListToJsonString(outResponseList)
+                ReplyString = JsonHelpers.SerializePairListToJsonString(outReplyList)
             };
 
             outPacket.Status = "Success";
@@ -97,7 +97,7 @@ namespace IpcTestServer
             // Implement your action logic here
             List<NameValuePair> outPairList = new List<NameValuePair>
             {
-                new NameValuePair { Name = "response", Value = "result from do_get2" }
+                new NameValuePair { Name = "reply", Value = "result from do_get2" }
             };
 
             var outPacket = new IpcPacket
@@ -138,7 +138,7 @@ namespace IpcTestServer
             // Implement your action logic here
             List<NameValuePair> outPairList = new List<NameValuePair>
             {
-                new NameValuePair { Name = "response", Value = "result from TestEnter" }
+                new NameValuePair { Name = "reply", Value = "result from TestEnter" }
             };
             var outPacket = new IpcPacket
             {
@@ -154,7 +154,7 @@ namespace IpcTestServer
             // Implement your action logic here
             List<NameValuePair> outPairList = new List<NameValuePair>
             {
-                new NameValuePair { Name = "response", Value = "result from TestExit" }
+                new NameValuePair { Name = "reply", Value = "result from TestExit" }
             };
 
             var outPacket = new IpcPacket
@@ -176,7 +176,7 @@ namespace IpcTestServer
             // Implement your action logic here
             List<NameValuePair> outPairList = new List<NameValuePair>
             {
-                new NameValuePair { Name = "response", Value = "result from do_get1" }
+                new NameValuePair { Name = "reply", Value = "result from do_get1" }
             };
 
             var outPacket = new IpcPacket

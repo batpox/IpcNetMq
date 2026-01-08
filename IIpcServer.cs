@@ -14,8 +14,8 @@ namespace IpcNetMq
 
         bool CloseSocket(out string reason);
         bool OpenSocket(out string reason);
-        bool PutResponsePacket(IpcPacket packet);
-        Task<bool> PutResponsePacketAsync(IpcPacket packet);
+        bool PutReplyPacket(IpcPacket packet);
+        Task<bool> PutReplyPacketAsync(IpcPacket packet);
         IpcPacket GetRequestPacket();
         Task<IpcPacket> GetRequestPacketAsync();
     }

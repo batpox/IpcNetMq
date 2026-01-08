@@ -31,9 +31,9 @@ namespace IpcNetMq
 
         /// <summary>
         /// An integer to make sure (for a given client) that the
-        /// response is going to the proper request.
-        /// Requests are odd, and the response is the next even
-        /// After a connection, the first request is 1, with 2 as the response.
+        /// reply is going to the proper request.
+        /// Requests are odd, and the reply is the next even
+        /// After a connection, the first request is 1, with 2 as the reply.
         /// </summary>
         [JsonProperty("sequence_number")]
         public int SequenceNumber { get; set; }
@@ -58,7 +58,7 @@ namespace IpcNetMq
 
         /// <summary>
         /// Serialized json string containing options such as logging level with Request
-        /// Information about IPC transaction, such as server information included with Response
+        /// Information about IPC transaction, such as server information included with Reply
         /// </summary>
         [JsonProperty("options_string")]
         public string OptionsString { get; set; } = "";
@@ -73,17 +73,17 @@ namespace IpcNetMq
 
         /// <summary>
         /// json string for request. Serialized list of name,value pairs.
-        /// Note that by convention a response list is also included in
+        /// Note that by convention a reply list is also included in
         /// the request to indicate expectations from the call.
         /// </summary>
         [JsonProperty("request_string")]
         public string RequestString { get; set; }
 
         /// <summary>
-        /// json string for response. Serialized list of name,value pairs
+        /// json string for reply. Serialized list of name,value pairs
         /// </summary>
-        [JsonProperty("response_string")]
-        public string ResponseString { get; set; }
+        [JsonProperty("reply_string")]
+        public string ReplyString { get; set; }
 
         public IpcPacket() { }
 
@@ -97,7 +97,7 @@ namespace IpcNetMq
 
         public override string ToString()
         {
-            return $"Packet #[{SequenceNumber}] ClientID={ClientId} RequestSize={RequestString.Length} ResponseSize={ResponseString.Length}";
+            return $"Packet #[{SequenceNumber}] ClientID={ClientId} RequestSize={RequestString.Length} ReplySize={ReplyString.Length}";
         }
 
     } // IpcPacket

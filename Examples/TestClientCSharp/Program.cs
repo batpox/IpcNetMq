@@ -29,8 +29,10 @@ namespace TestIpcClient
             int reportIntervalPackets = 10_000;   // after how many packets to log
             int backoffMs = 250;   // on error/timeout
 
-            Console.WriteLine(
-                  $"Client={clientName}: Using Server address={serverAddress}");
+            Console.WriteLine( $"Starting IpcNetMQ Client {clientName}, that does Request-Reply (ReqRep) transactions with the TestIpcServer. ");
+            Console.WriteLine( $"If the server is not available, it will timeout every {sendTimeout} seconds.");
+            Console.WriteLine( $"After every {reportIntervalPackets} transactions, it will report the count and average time for each transaction.");
+            Console.WriteLine( $"Client={clientName}. IpcNetMq ServerAddress={serverAddress}");
 
             // Init logger to Documents
             var docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
@@ -49,10 +51,7 @@ namespace TestIpcClient
             };
 
             // ----------------- Client (dispatcher) -----------------
-            using var client = new IpcClientNetMq(clientName, serverAddress)
-            {
-                LoggingLevel = 1
-            };
+            using var client = new IpcClientNetMq(clientName, serverAddress) { LoggingLevel = 1 };
             // NOTE: Do NOT call OpenConnection(); the dispatcher opens/reopens as needed.
 
             // Optional: log actual DLL loaded to catch stale copies
@@ -61,9 +60,7 @@ namespace TestIpcClient
                 var asm = typeof(IpcClientNetMq).Assembly;
                 var loc = asm.Location;
                 var ver = asm.GetName().Version;
-                Logit(
-                      $"IpcNetMq loaded from: {loc} "
-                    + $"AssemblyVersion={ver}");
+                Logit( $"IpcNetMq loaded from: {loc} AssemblyVersion={ver}");
             }
             catch { /* best effort */ }
 
@@ -90,10 +87,10 @@ namespace TestIpcClient
                         Action = "do_get1", // or "do_getStrokeData" per your server
                         ContextString = JsonHelpers.BuildNameValuePairs(("SimTime", $"{simTime:0.0}")),
                         RequestString = JsonHelpers.BuildNameValuePairs(("Value1", "10"), ("Value2", "23.4")),
-                        ResponseString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", ""))
+                        ReplyString = JsonHelpers.BuildNameValuePairs(("Result1", ""), ("Result2", ""))
                     };
 
-                    var response =
+                    var reply =
                         await client.CallIpcMethodAsync(
                             request,
                             sendTimeout: sendTimeout,
@@ -102,17 +99,17 @@ namespace TestIpcClient
 
                     packetsSent++;
 
-                    if (response != null && ((packetsSent % reportIntervalPackets) == 0) )
+                    if (reply != null && ((packetsSent % reportIntervalPackets) == 0) )
                     {
                         sw.Stop();
 
                         double avgTripMs = sw.ElapsedMilliseconds / (double)packetsSent;
                         Logit(
-                              $"OK seq={response.SequenceNumber} "
-                            + $"action={response.Action} "
+                              $"OK seq={reply.SequenceNumber} "
+                            + $"action={reply.Action} "
                             + $"trip avg={avgTripMs:0.00} ms "
-                            + $"respLen={(response.ResponseString?.Length ?? 0)}");
-                        // TODO: parse/use response.ResponseString if desired
+                            + $"respLen={(reply.ReplyString?.Length ?? 0)}");
+                        // TODO: parse/use reply.ReplyString if desired
                         packetsSent = 0;
                         sw = Stopwatch.StartNew();
                     }
@@ -129,8 +126,7 @@ namespace TestIpcClient
                 }
                 catch (Exception ex)
                 {
-                    Logit(
-                          $"Error: {ex.GetType().Name}: {ex.Message}");
+                    Logit($"Error: {ex.GetType().Name}: {ex.Message}");
                     await Task.Delay(backoffMs, cts.Token);
                 }
 

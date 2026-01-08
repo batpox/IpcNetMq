@@ -30,7 +30,7 @@ namespace IpcNetMq
         public string ServerAddress { get; set; }
 
         /// <summary>
-        /// The socket we bind to, so Requests can be received, and Responses sent.
+        /// The socket we bind to, so Requests can be received, and Replies sent.
         /// </summary>
         private ResponseSocket ServerSocket { get; set; }
 
@@ -43,7 +43,7 @@ namespace IpcNetMq
 
         /// <summary>
         /// The integer that increases for each request sent from this client.
-        /// The response must have the same number.
+        /// The reply must have the same number.
         /// </summary>
         private int SequenceNbr { get; set; }
 
@@ -69,8 +69,8 @@ namespace IpcNetMq
             ServerSocket = null;
         }
 
-        /// <summary>
-        /// Create/bind the response socket if not already created.
+        /// <summary>reply
+        /// Create/bind the  socket if not already created.
         /// If it exists, then Unbind/Close it.
         /// Regardless, attempt to bind to it.
         /// </summary>
@@ -201,7 +201,7 @@ namespace IpcNetMq
         /// <param name="packet"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public bool PutResponsePacket(IpcPacket packet)
+        public bool PutReplyPacket(IpcPacket packet)
         {
             if (packet == null)
                 throw new Exception($"Cannot send a null packet");
@@ -213,10 +213,10 @@ namespace IpcNetMq
 
             try
             {
-                string responseJson = JsonHelpers.SerializeToJsonString(packet);
-                Logit($"Sending Response Packet. Data Bytes={responseJson.Length}. Sending...");
-                ServerSocket.SendFrame(responseJson);
-                Logit($"Sent Response. Serialized Length={responseJson.Length} bytes. ");
+                string replyJson = JsonHelpers.SerializeToJsonString(packet);
+                Logit($"Sending Reply Packet. Data Bytes={replyJson.Length}. Sending...");
+                ServerSocket.SendFrame(replyJson);
+                Logit($"Sent Reply. Serialized Length={replyJson.Length} bytes. ");
 
                 return true;
             }
@@ -232,7 +232,7 @@ namespace IpcNetMq
         /// <param name="packet"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public async Task<bool> PutResponsePacketAsync(IpcPacket packet)
+        public async Task<bool> PutReplyPacketAsync(IpcPacket packet)
         {
             if (packet == null)
                 throw new Exception($"Cannot send a null packet");
@@ -244,9 +244,9 @@ namespace IpcNetMq
 
             try
             {
-                string responseJson = JsonHelpers.SerializeToJsonString(packet);
-                Logit($"Sending Packet. Data Bytes={responseJson.Length}. Sending...");
-                await Task.Run(() => ServerSocket.SendFrame(responseJson));
+                string replyJson = JsonHelpers.SerializeToJsonString(packet);
+                Logit($"Sending Packet. Data Bytes={replyJson.Length}. Sending...");
+                await Task.Run(() => ServerSocket.SendFrame(replyJson));
 
                 return true;
             }
@@ -312,7 +312,7 @@ namespace IpcNetMq
                                         if (replyPacket != null)
                                         {
                                             Logit($"Sending Reply Packet={packet}.");
-                                            await PutResponsePacketAsync(replyPacket);
+                                            await PutReplyPacketAsync(replyPacket);
                                         }
                                     }
                                 }
@@ -397,7 +397,7 @@ namespace IpcNetMq
                                         if (replyPacket != null)
                                         {
                                             Logit($"Sending Reply Packet={packet}.");
-                                            PutResponsePacket(replyPacket);
+                                            PutReplyPacket(replyPacket);
                                         }
                                     }
                                 }

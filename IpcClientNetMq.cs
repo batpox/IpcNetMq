@@ -44,7 +44,7 @@ namespace IpcNetMq
 
         /// <summary>
         /// The integer that increases for each request sent from this client.
-        /// The response must have the same number.
+        /// The reply must have the same number.
         /// </summary>
         private int SequenceNbr { get; set; }
 
@@ -122,18 +122,18 @@ namespace IpcNetMq
                         }
 
                         // receive
-                        string responseJson;
-                        if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out responseJson))
+                        string replyJson;
+                        if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out replyJson))
                             throw new TimeoutException($"Receive timed out after={wi.ReceiveTimeout.TotalMilliseconds} ms.");
 
-                        var response = JsonHelpers.DeserializeFromJsonString(responseJson);
+                        var reply = JsonHelpers.DeserializeFromJsonString(replyJson);
 
-                        if (response == null || response.SequenceNumber != wi.Request.SequenceNumber)
+                        if (reply == null || reply.SequenceNumber != wi.Request.SequenceNumber)
                             throw new InvalidOperationException(
                                 $"Sequence mismatch: req={wi.Request.SequenceNumber}," 
-                                + $" resp={(response == null ? -1 : response.SequenceNumber)}");
+                                + $" resp={(reply == null ? -1 : reply.SequenceNumber)}");
                         
-                        wi.Tcs.TrySetResult(response);
+                        wi.Tcs.TrySetResult(reply);
                     }
                     catch (Exception ex)
                     {
@@ -278,48 +278,48 @@ namespace IpcNetMq
         }
 
         /// <summary>
-        /// Get a response packet from the Server and deserialize it. Return the deserialized Packet.
+        /// Get a reply packet from the Server and deserialize it. Return the deserialized Packet.
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
         [Obsolete]
-        public IpcPacket GetResponsePacket()
+        public IpcPacket GetReplyPacket()
         {
-            IpcPacket responsePacket;
+            IpcPacket replyPacket;
             try
             {
                 // Assuming the server replies immediately after processing the message
-                if (!ClientSocket.TryReceiveFrameString(TimeSpan.FromSeconds(5), out var responseJson))
+                if (!ClientSocket.TryReceiveFrameString(TimeSpan.FromSeconds(5), out var replyJson))
                     throw new Exception($"Could not receive from Server within the timeout");
 
                 // Deserialize the entire message
-                responsePacket = JsonHelpers.DeserializeFromJsonString(responseJson);
-                return responsePacket;
+                replyPacket = JsonHelpers.DeserializeFromJsonString(replyJson);
+                return replyPacket;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Cannot Receive Response. Name={ClientName}. Err={ex.Message}");
+                throw new Exception($"Cannot Receive Reply. Name={ClientName}. Err={ex.Message}");
             }
         }
 
         /// <summary>
-        /// Get the response packet and deserialize it. Return the deserialized Packet.
+        /// Get the reply packet and deserialize it. Return the deserialized Packet.
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
         [Obsolete]
-        public async Task<IpcPacket> GetResponsePacketAsync()
+        public async Task<IpcPacket> GetReplyPacketAsync()
         {
-            IpcPacket responsePacket = null;
+            IpcPacket replyPacket = null;
             try
             {
                 // Assuming the server replies immediately after processing the message
-                var (responseJson, moreFrames) = await ClientSocket.ReceiveFrameStringAsync();
+                var (replyJson, moreFrames) = await ClientSocket.ReceiveFrameStringAsync();
                 if (!moreFrames)
                 {
                     // Deserialize the entire message
-                    responsePacket = JsonHelpers.DeserializeFromJsonString(responseJson);
-                    return responsePacket;
+                    replyPacket = JsonHelpers.DeserializeFromJsonString(replyJson);
+                    return replyPacket;
                 }
                 else
                 {
