@@ -61,10 +61,7 @@
     <Folder Include="Documentation\" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="README.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
+    <None Include="README.md" Pack="true" PackagePath="" />
     <None Update="Resources\IpcNetMq.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

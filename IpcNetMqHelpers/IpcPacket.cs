@@ -19,7 +19,7 @@ namespace IpcNetMq
         /// The format is "V", followed by yymmdd. E.g. V240301 for 1-Mar-2024
         /// </summary>
         [JsonProperty("version")]
-        public string Version { get; set; } = "V241007";
+        public string Version { get; set; } = "V260107";
 
         /// <summary>
         /// A unique string ID for the client.
