@@ -15,12 +15,12 @@ namespace IpcNetMq.IpcNetMqHelpers
         protected ResponseSocket ServerSocket;
         protected bool IsBound;
 
-        protected readonly NetMQRuntime Runtime;
+        //protected readonly NetMQRuntime Runtime;
 
         protected IpcServerBaseNetMq(string serverAddress)
         {
             ServerAddress = serverAddress;
-            Runtime = new NetMQRuntime();
+            //Runtime = new NetMQRuntime();
         }
 
         protected virtual void Logit(string msg)
@@ -151,6 +151,27 @@ namespace IpcNetMq.IpcNetMqHelpers
             });
         }
 
+        private enum ServerMode { None, Polling, Loop }
+        private ServerMode _mode;
+
+        /// <summary>
+        /// Ensures that the server socket is created and bound to the server address, making it ready for polling operations.
+        /// Throws an <see cref="InvalidOperationException"/> if the socket cannot be opened.
+        /// </summary>
+        public void EnsurePollingReady()
+        {
+            if (_mode == ServerMode.Loop)
+                throw new InvalidOperationException("Server is running in loop mode; cannot switch to polling.");
+
+            _mode = ServerMode.Polling;
+
+            if (ServerSocket != null && IsBound) 
+                return;
+
+            if (!OpenSocket(out var reason))
+                throw new InvalidOperationException($"OpenSocket failed: {reason}");
+        }
+
         public void Dispose()
         {
             Dispose(true);
@@ -165,7 +186,7 @@ namespace IpcNetMq.IpcNetMqHelpers
             {
                 try { CloseSocket(out _); } catch { /* best-effort */ }
 
-                try { Runtime.Dispose(); } catch { /* best-effort */ }
+                //try { Runtime.Dispose(); } catch { /* best-effort */ }
 
                 // Global cleanup once, on dispose
                 try { NetMQConfig.Cleanup(); } catch { /* best-effort */ }

@@ -53,6 +53,11 @@ namespace IpcNetMq
         /// </summary>
         private int OwnerThreadId { get; set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="IpcClientNetMq"/> class with the specified client name and server address.
+        /// </summary>
+        /// <param name="clientName">The friendly name of the client.</param>
+        /// <param name="serverAddress">The address of the server (e.g., "tcp://127.0.0.1:5555").</param>
         public IpcClientNetMq(string clientName, string serverAddress)
         {
             SequenceNbr = 0;
@@ -60,6 +65,7 @@ namespace IpcNetMq
             ServerAddress = serverAddress;
             ClientSocket = null;
         }
+
         /// <summary>
         /// Used for the IO Dispatcher
         /// </summary>
@@ -69,6 +75,8 @@ namespace IpcNetMq
             public TaskCompletionSource<IpcPacket> Tcs;
             public TimeSpan SendTimeout;
             public TimeSpan ReceiveTimeout;
+            public CancellationTokenRegistration CancellationRegistration;
+            public CancellationToken CancellationToken;
         }
 
         private readonly BlockingCollection<WorkItem> _queue =
@@ -83,9 +91,14 @@ namespace IpcNetMq
         // call this before first use
         private void EnsureIoThread()
         {
-            if (_ioThread != null) return;
+            if (_ioThread != null) 
+                return;
+
             lock (_ioLock)
             {
+                if ((_ioThread != null))
+                    return; // double-check to prevent two threads starting it
+
                 _ioCts = new CancellationTokenSource();
                 _ioThread = new Thread(IoLoop) { IsBackground = true, Name = "IpcClientNetMq-IO" };
                 _ioThread.Start();
@@ -105,8 +118,12 @@ namespace IpcNetMq
                 {
                     try
                     {
-                        // if the caller canceled this work, just drop it
-                        if (wi.Tcs.Task.IsCanceled) continue;
+                        // avoids the subtle race where the token is canceled but Task.IsCanceled hasn’t transitioned yet.
+                        if (wi.CancellationToken.IsCancellationRequested)
+                        {
+                            wi.Tcs.TrySetCanceled(wi.CancellationToken);
+                            continue;
+                        }
 
                         // sequence inside this single-threaded loop
                         SequenceNbr++;
@@ -122,8 +139,7 @@ namespace IpcNetMq
                         }
 
                         // receive
-                        string replyJson;
-                        if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out replyJson))
+                        if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out var replyJson))
                             throw new TimeoutException($"Receive timed out after={wi.ReceiveTimeout.TotalMilliseconds} ms.");
 
                         var reply = JsonHelpers.DeserializeFromJsonString(replyJson);
@@ -139,6 +155,10 @@ namespace IpcNetMq
                     {
                         wi.Tcs.TrySetException(ex);
                     }
+                    finally
+                    {
+                        wi.CancellationRegistration.Dispose();
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -149,7 +169,10 @@ namespace IpcNetMq
             {
                 // fail any pending waiters if the loop blows up
                 while (_queue.TryTake(out var wi))
+                {
+                    wi.CancellationRegistration.Dispose();
                     wi.Tcs.TrySetException(ex);
+                }
             }
         }
 
@@ -384,34 +407,45 @@ namespace IpcNetMq
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public Task<IpcPacket> CallIpcMethodAsync(IpcPacket request
-            ,TimeSpan? sendTimeout = null
-            ,TimeSpan? receiveTimeout = null
-            ,CancellationToken ct = default(CancellationToken) )
+        public Task<IpcPacket> CallIpcMethodAsync(
+            IpcPacket request,
+            TimeSpan? sendTimeout = null,
+            TimeSpan? receiveTimeout = null,
+            CancellationToken ct = default)
         {
-            if (request == null) throw new ArgumentNullException("request");
+            if (request is null) 
+                throw new ArgumentNullException(nameof(request));
 
             EnsureIoThread();
 
+            if (ct.IsCancellationRequested)
+                return Task.FromCanceled<IpcPacket>(ct);
+
             var tcs = new TaskCompletionSource<IpcPacket>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            CancellationTokenRegistration ctr = default;
+            if (ct.CanBeCanceled)
+                ctr = ct.Register(() => tcs.TrySetCanceled(ct));
+
             var wi = new WorkItem
             {
                 Request = request,
                 Tcs = tcs,
                 SendTimeout = sendTimeout ?? _defaultSend,
-                ReceiveTimeout = receiveTimeout ?? _defaultRecv
+                ReceiveTimeout = receiveTimeout ?? _defaultRecv,
+                CancellationRegistration = ctr,
+                CancellationToken = ct
             };
 
-            // enqueue (respect cancellation)
-            if (ct.CanBeCanceled)
+            try
             {
-                // if canceled before enqueue
-                if (ct.IsCancellationRequested) { tcs.TrySetCanceled(); return tcs.Task; }
-                ct.Register(() => tcs.TrySetCanceled());
+                _queue.Add(wi, ct);
             }
-
-            try { _queue.Add(wi, ct); }
-            catch (OperationCanceledException) { tcs.TrySetCanceled(); }
+            catch (OperationCanceledException)
+            {
+                ctr.Dispose();
+                return Task.FromCanceled<IpcPacket>(ct);
+            }
 
             return tcs.Task;
         }

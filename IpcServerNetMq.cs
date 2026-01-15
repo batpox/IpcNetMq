@@ -56,6 +56,8 @@ namespace IpcNetMq
         // NEW: POLLING / NON-BLOCKING SERVER API (for Update loops)
         // ============================================================
 
+        private bool _awaitingReply;
+
         /// <summary>
         /// Non-blocking poll for the next request.
         /// Returns true only when a full request frame was received.
@@ -65,12 +67,29 @@ namespace IpcNetMq
         {
             request = null;
 
+            EnsurePollingReady();
+
+            if ( _awaitingReply)
+                throw new InvalidOperationException("Must send a reply before receiving the next request.");
+
             // TimeSpan.Zero => do not block
             if (!ServerSocket.TryReceiveFrameString(TimeSpan.Zero, out var json))
                 return false;
 
-            request = JsonHelpers.DeserializeFromJsonString(json);
-            return true;
+            try
+            {
+                request = JsonHelpers.DeserializeFromJsonString(json);
+                if ( request == null)
+                    return false;
+
+                _awaitingReply = true;
+                return true;
+            }
+            catch
+            {
+                // optionally log json length or first N chars
+                return false;
+            }
         }
 
         /// <summary>
@@ -79,10 +98,16 @@ namespace IpcNetMq
         /// </summary>
         public void SendReply(IpcPacket reply)
         {
-            if (reply == null) throw new ArgumentNullException(nameof(reply));
+            if (reply == null) 
+                throw new ArgumentNullException(nameof(reply));
+
+            if (!_awaitingReply)
+                throw new InvalidOperationException("SendReply called without a preceding TryGetRequest().");
 
             string json = JsonHelpers.SerializeToJsonString(reply);
             ServerSocket.SendFrame(json);
+
+            _awaitingReply = false;
         }
     }
 }

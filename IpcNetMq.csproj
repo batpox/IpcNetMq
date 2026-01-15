@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>26.1.9.0</Version>
+    <Version>26.1.14.0</Version>
     <Authors>Daniel T. Houck</Authors>
     <Company>batpox/metalBlender</Company>
     <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
@@ -21,8 +21,8 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <AssemblyVersion>26.1.9.0</AssemblyVersion>
-    <FileVersion>26.1.9.0</FileVersion>
+    <AssemblyVersion>26.1.14.0</AssemblyVersion>
+    <FileVersion>26.1.14.0</FileVersion>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <SignAssembly>False</SignAssembly>
