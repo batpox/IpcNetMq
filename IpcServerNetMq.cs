@@ -16,6 +16,11 @@ namespace IpcNetMq
             ServerName = name;
         }
 
+        /// <summary>
+        /// Run the Server loop async, using the provided 'action handler' method,
+        /// that will process each incoming request packet and return a reply packet.
+        /// </summary>
+        /// <param name="handleAction"></param>
         public void RunIpcServerLoop(Func<IpcPacket, IpcPacket> handleAction)
         {
             RunServerLoopAsync(
@@ -31,7 +36,12 @@ namespace IpcNetMq
             ).GetAwaiter().GetResult();
         }
 
-
+        /// <summary>
+        /// Todo: Test.
+        /// </summary>
+        /// <param name="handleAction"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
         public Task RunIpcServerLoopOnBackgroundThreadAsync(
             Func<IpcPacket, IpcPacket> handleAction,
             CancellationToken ct = default)

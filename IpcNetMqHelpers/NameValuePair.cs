@@ -1,7 +1,18 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
+    public static class IpcJson
+    {
+        public static readonly JsonSerializerOptions Options = new JsonSerializerOptions()
+        {
+            PropertyNamingPolicy = null,
+            DictionaryKeyPolicy = null,
+            WriteIndented = false
+        };
+    }
+
     /// <summary>
     /// Holds the Name, Value-Hint, and Value (in string format)
     /// </summary>
@@ -10,14 +21,14 @@ namespace IpcNetMq.IpcNetMqHelpers
         /// <summary>
         /// The name of the value.
         /// </summary>
-        [JsonProperty("name")]
+        [JsonPropertyName("name")]
         public string Name { get; set; } = "";
 
 
         /// <summary>
         /// An encoded value string.
         /// </summary>
-        [JsonProperty("value")]
+        [JsonPropertyName("value")]
         public string Value { get; set; } = "";
 
         public NameValuePair() { }
@@ -36,5 +47,5 @@ namespace IpcNetMq.IpcNetMqHelpers
 
     }
 
-
-} // namespace
+}
+// namespace

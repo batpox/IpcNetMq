@@ -1,8 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 using System;
 
-namespace IpcNetMq
+namespace IpcNetMq.IpcNetMqHelpers
 {
+
     /// <summary>
     /// The packet that is transferred between server and client.
     /// It holds whatever is neccessary for the IPC mechanism.
@@ -18,7 +19,7 @@ namespace IpcNetMq
         /// and the client are talking the same language (compatible schemas).
         /// The format is "V", followed by yymmdd. E.g. V240301 for 1-Mar-2024
         /// </summary>
-        [JsonProperty("version")]
+        [JsonPropertyName("version")]
         public string Version { get; set; } = "V260107";
 
         /// <summary>
@@ -26,7 +27,7 @@ namespace IpcNetMq
         /// You decide how to do this but examples would be time-based, guid, etc.
         /// The server is stateless, so this is for debugging purposes only.
         /// </summary>
-        [JsonProperty("client_id")]
+        [JsonPropertyName("client_id")]
         public string ClientId { get; set; }
 
         /// <summary>
@@ -35,32 +36,32 @@ namespace IpcNetMq
         /// Requests are odd, and the reply is the next even
         /// After a connection, the first request is 1, with 2 as the reply.
         /// </summary>
-        [JsonProperty("sequence_number")]
+        [JsonPropertyName("sequence_number")]
         public int SequenceNumber { get; set; }
 
         /// <summary>
         /// The world time in "o" format
         /// </summary>
-        [JsonProperty("world_time")]
+        [JsonPropertyName("world_time")]
         public string WorldTime { get; set; } = DateTime.UtcNow.ToString("o");
 
         /// <summary>
         /// The name of the procedure/method
         /// </summary>
-        [JsonProperty("action")]
+        [JsonPropertyName("action")]
         public string Action { get; set; } = "";
 
         /// <summary>
         /// Status of the call. Empty means unqualified success.
         /// </summary>
-        [JsonProperty("status")]
+        [JsonPropertyName("status")]
         public string Status { get; set; } = "";
 
         /// <summary>
         /// Serialized json string containing options such as logging level with Request
         /// Information about IPC transaction, such as server information included with Reply
         /// </summary>
-        [JsonProperty("options_string")]
+        [JsonPropertyName("options_string")]
         public string OptionsString { get; set; } = "";
 
         /// <summary>
@@ -68,7 +69,7 @@ namespace IpcNetMq
         /// to customize a REQ-REP implementation. For example, including the
         /// simulation time instead of having to pass it as arguments each time.
         /// </summary>
-        [JsonProperty("context_string")]
+        [JsonPropertyName("context_string")]
         public string ContextString { get; set; } = "";
 
         /// <summary>
@@ -76,13 +77,13 @@ namespace IpcNetMq
         /// Note that by convention a reply list is also included in
         /// the request to indicate expectations from the call.
         /// </summary>
-        [JsonProperty("request_string")]
+        [JsonPropertyName("request_string")]
         public string RequestString { get; set; }
 
         /// <summary>
         /// json string for reply. Serialized list of name,value pairs
         /// </summary>
-        [JsonProperty("reply_string")]
+        [JsonPropertyName("reply_string")]
         public string ReplyString { get; set; }
 
         public IpcPacket() { }
@@ -95,12 +96,10 @@ namespace IpcNetMq
             return "OK";
         }
 
+        /// <summary>Override of ToString</summary>
         public override string ToString()
-        {
-            return $"Packet #[{SequenceNumber}] ClientID={ClientId} RequestSize={RequestString.Length} ReplySize={ReplyString.Length}";
-        }
+            => $"Packet #[{SequenceNumber}] ClientID={ClientId} Request({RequestString.Length})={RequestString.Trunc(15)}...  Reply({ReplyString.Length})={ReplyString.Trunc(15)}... ";
 
     } // IpcPacket
-
 
 } // namespace

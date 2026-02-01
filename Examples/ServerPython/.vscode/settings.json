@@ -1,0 +1,9 @@
+{
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.pythonProjects": [],
+  "audioCues.enabled": "off",
+  "accessibility.signals.terminalBell": {
+    "sound": "off"
+  },
+  "terminal.integrated.enableVisualBell": false
+}

@@ -56,7 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="NetMQ" Version="4.0.2.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.Text.Json" Version="10.0.2" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Documentation\" />

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using IpcNetMq.IpcNetMqHelpers;
+using System.Threading.Tasks;
 
 namespace IpcNetMq
 {

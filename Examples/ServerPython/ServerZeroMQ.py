@@ -7,7 +7,7 @@ import zmq
 import pywintypes
 from IpcPacket import IpcPacket, NameValuePair
 
-from UserActions import do_get1, do_get2
+from UserActions import do_get1, do_get2, handle_do_get1
 
 # We define our actions to have a packet argument plus inData tuple of [string,string] 
 # where the convention is the first string is a name and the second is a value.
@@ -15,7 +15,7 @@ from UserActions import do_get1, do_get2
 def handle_action(inPacket):
     # Example action handler, expand based on actual actions
     action_handlers = {
-        "do_get1": do_get1,
+        "do_get1": handle_do_get1,
         "do_get2": do_get2
         # Add more actions here. Consider adding a "Close" or similar action to gracefully end the connection.
     }

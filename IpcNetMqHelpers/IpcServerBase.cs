@@ -6,28 +6,44 @@ using System.Threading.Tasks;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
+    /// <summary>
+    /// The base class. Provides default Logit, OpenSocket, CloseSocket, and RunServerLoopAsync methods.
+    /// </summary>
     public abstract class IpcServerBaseNetMq : IDisposable
     {
         private bool _disposed;
-        //protected static readonly Mutex ReqRepMutex = new Mutex();
 
         protected readonly string ServerAddress;
         protected ResponseSocket ServerSocket;
         protected bool IsBound;
 
-        //protected readonly NetMQRuntime Runtime;
-
+        /// <summary>
+        /// Construct with a required address. e.g. "tcp://127.0.0.1:5555" loopback for same-machine.
+        /// </summary>
+        /// <param name="serverAddress"></param>
+        /// <exception cref="ArgumentNullException"></exception>
         protected IpcServerBaseNetMq(string serverAddress)
         {
+            if ( string.IsNullOrWhiteSpace(serverAddress))  
+                throw new ArgumentNullException("Server Address cannot be null or empty");
+
             ServerAddress = serverAddress;
-            //Runtime = new NetMQRuntime();
         }
 
+        /// <summary>
+        /// A log to the console. Override to implement custom logging.
+        /// </summary>
+        /// <param name="msg"></param>
         protected virtual void Logit(string msg)
         {
             Console.WriteLine(msg);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="reason"></param>
+        /// <returns></returns>
         protected virtual bool OpenSocket(out string reason)
         {
             reason = null;
@@ -52,6 +68,11 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
         }
 
+        /// <summary>
+        /// Close the socket if open. Usually done as process exits.
+        /// </summary>
+        /// <param name="reason"></param>
+        /// <returns></returns>
         protected virtual bool CloseSocket(out string reason)
         {
             reason = "";
@@ -77,14 +98,31 @@ namespace IpcNetMq.IpcNetMqHelpers
 
         /// <summary>Backward compatible overload </summary>
         protected Task RunServerLoopAsync(
-            Func<Task<IpcPacket>> receiveFunc,
-            Func<IpcPacket, Task> respondFunc,
+            Func<Task<IpcPacket>> requestFunc,
+            Func<IpcPacket, Task> replyFunc,
             string label ) =>
-             RunServerLoopAsync(receiveFunc, respondFunc, label, CancellationToken.None);
+             RunServerLoopAsync(requestFunc, replyFunc, label, CancellationToken.None);
         
+        /// <summary>
+        /// Runs the main asynchronous server loop, receiving and replying to IPC packets until cancellation is
+        /// requested or the maximum number of retries (of opening socket) is reached.
+        /// </summary>
+        /// <remarks>The server loop attempts to bind and listen for incoming packets, automatically
+        /// retrying on failure up to a fixed maximum number of attempts. The loop processes packets serially on a
+        /// single thread. If an exception occurs during packet processing or socket operations, the server will log the
+        /// error, close the socket, and attempt to restart after a short delay. The operation can be cancelled at any
+        /// time via the provided cancellation token.</remarks>
+        /// <param name="requestFunc">A delegate that asynchronously receives an incoming IPC packet. Called repeatedly to obtain packets to
+        /// process. Must not be null.</param>
+        /// <param name="replyFunc">A delegate that asynchronously processes and responds to a received IPC packet. Invoked for each non-null
+        /// packet received. Must not be null.</param>
+        /// <param name="label">A label used for logging and diagnostic messages to identify the server instance. Cannot be null.</param>
+        /// <param name="ct">A cancellation token that can be used to request termination of the server loop.</param>
+        /// <returns>A task that represents the lifetime of the server loop operation. The task completes when the loop exits due
+        /// to cancellation or after the maximum number of retries.</returns>
         protected Task RunServerLoopAsync(
-            Func<Task<IpcPacket>> receiveFunc,
-            Func<IpcPacket, Task> respondFunc,
+            Func<Task<IpcPacket>> requestFunc,
+            Func<IpcPacket, Task> replyFunc,
             string label,
             CancellationToken ct)
         {
@@ -112,10 +150,10 @@ namespace IpcNetMq.IpcNetMqHelpers
                                 try
                                 {
                                     // Single-threaded loop, so all socket I/O stay on this thread
-                                    var packet = await receiveFunc().ConfigureAwait(false);
+                                    var packet = await requestFunc().ConfigureAwait(false);
                                     if (packet != null)
                                     {
-                                        await respondFunc(packet).ConfigureAwait(false);
+                                        await replyFunc(packet).ConfigureAwait(false);
                                     }
                                 }
                                 catch (Exception ex)
@@ -152,7 +190,7 @@ namespace IpcNetMq.IpcNetMqHelpers
         }
 
         private enum ServerMode { None, Polling, Loop }
-        private ServerMode _mode;
+        private ServerMode serverMode;
 
         /// <summary>
         /// Ensures that the server socket is created and bound to the server address, making it ready for polling operations.
@@ -160,16 +198,24 @@ namespace IpcNetMq.IpcNetMqHelpers
         /// </summary>
         public void EnsurePollingReady()
         {
-            if (_mode == ServerMode.Loop)
+            if (serverMode == ServerMode.Loop)
                 throw new InvalidOperationException("Server is running in loop mode; cannot switch to polling.");
 
-            _mode = ServerMode.Polling;
+            try
+            {
+                serverMode = ServerMode.Polling;
 
-            if (ServerSocket != null && IsBound) 
-                return;
+                if ( (ServerSocket != null) && IsBound) // already open
+                    return;
 
-            if (!OpenSocket(out var reason))
-                throw new InvalidOperationException($"OpenSocket failed: {reason}");
+                if (!OpenSocket(out var reason))
+                    throw new InvalidOperationException($"OpenSocket failed={reason}");
+
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("EnsurePollingReady failed. Err={ex.Message}");
+            }
         }
 
         public void Dispose()
