@@ -22,7 +22,7 @@
   </metadata>
   <files>
     <file src="bin\Release\net48\IpcNetMq.dll" target="lib\net48\IpcNetMq.dll" />
-    <file src="bin\Release\net6.0\IpcNetMq.dll" target="lib\net6.0\IpcNetMq.dll" />
     <file src="bin\Release\net8.0\IpcNetMq.dll" target="lib\net8.0\IpcNetMq.dll" />
+    <file src="bin\Release\net10.0\IpcNetMq.dll" target="lib\net10.0\IpcNetMq.dll" />
   </files>
 </package>

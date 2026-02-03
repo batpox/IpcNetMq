@@ -1,7 +1,8 @@
 ﻿using System.Text.Json.Serialization;
 using System;
+using IpcNetMq.IpcNetMqHelpers;
 
-namespace IpcNetMq.IpcNetMqHelpers
+namespace IpcNetMq
 {
 
     /// <summary>
@@ -24,7 +25,7 @@ namespace IpcNetMq.IpcNetMqHelpers
 
         /// <summary>
         /// A unique string ID for the client.
-        /// You decide how to do this but examples would be time-based, guid, etc.
+        /// You decide how to use this but examples would be time-based, guid, etc.
         /// The server is stateless, so this is for debugging purposes only.
         /// </summary>
         [JsonPropertyName("client_id")]
@@ -40,7 +41,7 @@ namespace IpcNetMq.IpcNetMqHelpers
         public int SequenceNumber { get; set; }
 
         /// <summary>
-        /// The world time in "o" format
+        /// The world (utc) time in "o" format
         /// </summary>
         [JsonPropertyName("world_time")]
         public string WorldTime { get; set; } = DateTime.UtcNow.ToString("o");
