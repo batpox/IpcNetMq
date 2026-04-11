@@ -24,9 +24,7 @@ namespace IpcNetMq
         public string Version { get; set; } = "V260107";
 
         /// <summary>
-        /// A unique string ID for the client.
-        /// You decide how to use this but examples would be time-based, guid, etc.
-        /// The server is stateless, so this is for debugging purposes only.
+        /// A unique string ID for the client. It is assigned by the client and should be unique to the Server.
         /// </summary>
         [JsonPropertyName("client_id")]
         public string ClientId { get; set; }
@@ -41,7 +39,7 @@ namespace IpcNetMq
         public int SequenceNumber { get; set; }
 
         /// <summary>
-        /// The world (utc) time in "o" format
+        /// Time Packet was constructed. The world (utc) time in "o" format
         /// </summary>
         [JsonPropertyName("world_time")]
         public string WorldTime { get; set; } = DateTime.UtcNow.ToString("o");

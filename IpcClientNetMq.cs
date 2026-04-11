@@ -144,7 +144,7 @@ namespace IpcNetMq
 
                         var reply = JsonHelpers.DeserializeFromJsonString(replyJson);
 
-                        if (reply == null || reply.SequenceNumber != wi.Request.SequenceNumber)
+                        if (reply == null || reply.SequenceNumber != (wi.Request.SequenceNumber+1))
                             throw new InvalidOperationException(
                                 $"Sequence mismatch: req={wi.Request.SequenceNumber}," 
                                 + $" resp={(reply == null ? -1 : reply.SequenceNumber)}");
