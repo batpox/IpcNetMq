@@ -15,8 +15,8 @@ namespace IpcTestServer
         /// In this example method the number of pairs in both Expressions (Request) and States (Reply)
         /// are the same, but it's not a requirement.
         /// </summary>
-        /// <param name="inPacket"></param>
-        /// <returns></returns>
+        /// <param name="inPacket"/>
+        /// <returns/>
         public static IpcPacket do_get1(IpcPacket inPacket)
         {
             // Implement your action logic here
@@ -74,7 +74,7 @@ namespace IpcTestServer
 
             var outPacket = new IpcPacket
             {
-                SequenceNumber = inPacket.SequenceNumber,
+                //SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
                 ReplyString = JsonHelpers.SerializePairListToJsonString(outReplyList)
             };
@@ -96,7 +96,7 @@ namespace IpcTestServer
 
             var outPacket = new IpcPacket
             {
-                SequenceNumber = inPacket.SequenceNumber,
+                //SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
                 RequestString = JsonHelpers.SerializePairListToJsonString(outPairList)
             };
@@ -120,7 +120,7 @@ namespace IpcTestServer
                     var outData = $"Unknown action={inPacket.Action}";
                     return new IpcPacket
                     {
-                        SequenceNumber = inPacket.SequenceNumber,
+                        //SequenceNumber = inPacket.SequenceNumber,
                         Action = "FAIL",
                         RequestString = JsonSerializer.Serialize(outData)
                     };
@@ -136,7 +136,7 @@ namespace IpcTestServer
             };
             var outPacket = new IpcPacket
             {
-                SequenceNumber = inPacket.SequenceNumber,
+                //SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
                 RequestString = JsonHelpers.SerializePairListToJsonString(outPairList)
             };
@@ -153,7 +153,7 @@ namespace IpcTestServer
 
             var outPacket = new IpcPacket
             {
-                SequenceNumber = inPacket.SequenceNumber,
+                //SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
                 RequestString = JsonHelpers.SerializePairListToJsonString(outPairList)
             };
@@ -163,8 +163,8 @@ namespace IpcTestServer
         /// <summary>
         /// A template for your Action
         /// </summary>
-        /// <param name="inPacket"></param>
-        /// <returns></returns>
+        /// <param name="inPacket"/>
+        /// <returns/>
         public static IpcPacket ActionTemplate(IpcPacket inPacket)
         {
             // Implement your action logic here
@@ -175,7 +175,7 @@ namespace IpcTestServer
 
             var outPacket = new IpcPacket
             {
-                SequenceNumber = inPacket.SequenceNumber,
+                //SequenceNumber = inPacket.SequenceNumber,
                 Action = "SUCCESS",
                 RequestString = JsonHelpers.SerializePairListToJsonString(outPairList)
             };

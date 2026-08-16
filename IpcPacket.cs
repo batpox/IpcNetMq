@@ -35,8 +35,15 @@ namespace IpcNetMq
         /// Requests are odd, and the reply is the next even
         /// After a connection, the first request is 1, with 2 as the reply.
         /// </summary>
+        /// 
+        [JsonInclude]
         [JsonPropertyName("sequence_number")]
-        public int SequenceNumber { get; set; }
+        public int SequenceNumber { get; private set; }
+
+        internal void SetSequenceNumber(int value)
+        {
+            SequenceNumber = value;
+        }
 
         /// <summary>
         /// Time Packet was constructed. The world (utc) time in "o" format

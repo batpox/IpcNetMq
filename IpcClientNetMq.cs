@@ -46,7 +46,7 @@ namespace IpcNetMq
         /// The integer that increases for each request sent from this client.
         /// The reply must have the same number.
         /// </summary>
-        private int SequenceNbr { get; set; }
+        private int SequenceNbr { get; set; } = -1;
 
         /// <summary>
         /// Set when socke is (re)opened
@@ -60,7 +60,7 @@ namespace IpcNetMq
         /// <param name="serverAddress">The address of the server (e.g., "tcp://127.0.0.1:5555").</param>
         public IpcClientNetMq(string clientName, string serverAddress)
         {
-            SequenceNbr = 0;
+            SequenceNbr = -1;
             ClientName = clientName;
             ServerAddress = serverAddress;
             ClientSocket = null;
@@ -126,8 +126,8 @@ namespace IpcNetMq
                         }
 
                         // sequence inside this single-threaded loop
-                        SequenceNbr++;
-                        wi.Request.SequenceNumber = SequenceNbr;
+                        SequenceNbr = checked(SequenceNbr + 2); // I.e. 1, 3, 5, ... for requests, and 2, 4, 6, ... for replies
+                        wi.Request.SetSequenceNumber(SequenceNbr);
 
                         var json = JsonHelpers.SerializeToJsonString(wi.Request);
 
@@ -147,7 +147,7 @@ namespace IpcNetMq
                         if (reply == null || reply.SequenceNumber != (wi.Request.SequenceNumber+1))
                             throw new InvalidOperationException(
                                 $"Sequence mismatch: req={wi.Request.SequenceNumber}," 
-                                + $" resp={(reply == null ? -1 : reply.SequenceNumber)}");
+                                + $" resp(expected {wi.Request.SequenceNumber+1})={(reply == null ? -1 : reply.SequenceNumber)}");
                         
                         wi.Tcs.TrySetResult(reply);
                     }

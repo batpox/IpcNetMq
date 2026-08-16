@@ -16,7 +16,7 @@ namespace IpcNetMq.Tests
             // Arrange
             var packet = new IpcPacket
             {
-                SequenceNumber = 1,
+                //SequenceNumber = 1,
                 Action = "TestAction",
                 RequestString = "RequestData",
                 ReplyString = "ReplyData"

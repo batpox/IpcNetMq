@@ -28,8 +28,14 @@ namespace IpcNetMq
                 packet =>
                 {
                     var reply = handleAction(packet);
-                    if (reply != null)
-                        PutReplyPacket(reply);
+
+                    if ( reply == null)
+                        throw new ApplicationException("Server action handler returned null reply packet.");
+
+                    reply.SetSequenceNumber(checked(packet.SequenceNumber + 1));
+                    reply.ClientId = packet.ClientId;
+
+                    PutReplyPacket(reply);
                     return Task.CompletedTask;
                 },
                 "Sync"
@@ -67,6 +73,7 @@ namespace IpcNetMq
         // ============================================================
 
         private bool _awaitingReply;
+        private int _requestSequenceNumber;
 
         /// <summary>
         /// Non-blocking poll for the next request.
@@ -92,6 +99,7 @@ namespace IpcNetMq
                 if ( request == null)
                     return false;
 
+                _requestSequenceNumber = request.SequenceNumber;
                 _awaitingReply = true;
                 return true;
             }
@@ -113,6 +121,8 @@ namespace IpcNetMq
 
             if (!_awaitingReply)
                 throw new InvalidOperationException("SendReply called without a preceding TryGetRequest().");
+
+            reply.SetSequenceNumber(checked(_requestSequenceNumber + 1));
 
             string json = JsonHelpers.SerializeToJsonString(reply);
             ServerSocket.SendFrame(json);
