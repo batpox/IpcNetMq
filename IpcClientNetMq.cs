@@ -116,6 +116,8 @@ namespace IpcNetMq
 
                 foreach (var wi in _queue.GetConsumingEnumerable(_ioCts.Token))
                 {
+                    bool requestWasSent = false;
+
                     try
                     {
                         // avoids the subtle race where the token is canceled but Task.IsCanceled hasn’t transitioned yet.
@@ -134,9 +136,12 @@ namespace IpcNetMq
                         // send (timeout + single reconnect)
                         if (!TrySendJson(json, wi.SendTimeout, out reason))
                         {
-                            if (!Reconnect(out reason) || !TrySendJson(json, wi.SendTimeout, out reason))
+                            if (!Reconnect(out reason) 
+                              || !TrySendJson(json, wi.SendTimeout, out reason))
                                 throw new TimeoutException($"Send failed={reason}");
                         }
+
+                        requestWasSent = true;
 
                         // receive
                         if (!ClientSocket.TryReceiveFrameString(wi.ReceiveTimeout, out var replyJson))
@@ -144,15 +149,24 @@ namespace IpcNetMq
 
                         var reply = JsonHelpers.DeserializeFromJsonString(replyJson);
 
-                        if (reply == null || reply.SequenceNumber != (wi.Request.SequenceNumber+1))
+                        int expectedSequence = wi.Request.SequenceNumber + 1;
+
+                        if (reply == null || reply.SequenceNumber != expectedSequence)
+                        {
                             throw new InvalidOperationException(
-                                $"Sequence mismatch: req={wi.Request.SequenceNumber}," 
-                                + $" resp(expected {wi.Request.SequenceNumber+1})={(reply == null ? -1 : reply.SequenceNumber)}");
-                        
+                                $"Sequence mismatch: req={wi.Request.SequenceNumber},"
+                                + $" resp(expected {expectedSequence})={(reply == null ? -1 : reply.SequenceNumber)}");
+                        }
+
+                        requestWasSent = false; // we got a reply, so the request is no longer pending
                         wi.Tcs.TrySetResult(reply);
                     }
                     catch (Exception ex)
                     {
+                        // A REQ socket cannot send another request if the previous request did not complete with a valid receive.
+                        if (requestWasSent)
+                            Reconnect(out _);
+
                         wi.Tcs.TrySetException(ex);
                     }
                     finally
