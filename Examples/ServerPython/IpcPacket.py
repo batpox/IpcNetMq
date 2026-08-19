@@ -6,7 +6,10 @@ class IpcPacket:
         self.version = version
         self.client_id = client_id
         self.sequence_number = sequence_number
-        self.world_time = world_time or datetime.datetime.now().isoformat()
+        self.world_time = (
+            world_time 
+            or datetime.datetime.now(datetime.timezone.utc).isoformat()
+        )
         self.action = action
         self.status = status
         self.options_string = options_string
@@ -15,12 +18,31 @@ class IpcPacket:
         self.reply_string = reply_string
 
     def clone(self):
-        return IpcPacket(self.version, self.client_id, self.sequence_number, self.world_time, 
-                           self.action, self.options_string, self.context_string, self.request_string, self.reply_string)
+        return IpcPacket(
+            version=self.version, 
+            client_id=self.client_id, 
+            sequence_number=self.sequence_number, 
+            world_time=self.world_time, 
+            action=self.action, 
+            status=self.status, 
+            options_string=self.options_string, 
+            context_string=self.context_string, 
+            request_string=self.request_string, 
+            reply_string=self.reply_string
+        )
 
     def __str__(self):
-        return f"Version=[{self.version}] #=[{self.sequence_number}] WorldTime={self.world_time} " 
-        f" Action=[{self.action}] Options=[{self.options_string}] Context=[{self.context_string}] Request={self.request_string} Request={self.reply_string}"
+        return (
+            f"Version=[{self.version}] "
+            f"#=[{self.sequence_number}] "
+            f"WorldTime={self.world_time} "
+            f"Action=[{self.action}] "
+            f"Status=[{self.status}] "
+            f"Options=[{self.options_string}] "
+            f"Context=[{self.context_string}] "
+            f"Request={self.request_string} "
+            f"Reply={self.reply_string}"
+        )
 
     @staticmethod
     def serializeToJsonString(obj):

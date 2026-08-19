@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.9.34616.47
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12105.275 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IpcNetMq", "IpcNetMq.csproj", "{03446016-3641-4E25-A44C-C07EBA6A906E}"
 EndProject
@@ -14,6 +14,16 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CFF6EBDC-C627-4799-88F0-B4411D154EBF}"
 	ProjectSection(SolutionItems) = preProject
 		IpcNetMq.nuspec = IpcNetMq.nuspec
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Other", "Other", "{7B3AA541-55D6-451C-B8FE-6E31AA518946}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ServerPython", "ServerPython", "{D2CFABC2-93D7-4688-BE14-8354C214824C}"
+	ProjectSection(SolutionItems) = preProject
+		Examples\ServerPython\(readme).txt = Examples\ServerPython\(readme).txt
+		Examples\ServerPython\IpcPacket.py = Examples\ServerPython\IpcPacket.py
+		Examples\ServerPython\ServerZeroMQ.py = Examples\ServerPython\ServerZeroMQ.py
+		Examples\ServerPython\UserActions.py = Examples\ServerPython\UserActions.py
 	EndProjectSection
 EndProject
 Global
@@ -41,6 +51,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D2CFABC2-93D7-4688-BE14-8354C214824C} = {7B3AA541-55D6-451C-B8FE-6E31AA518946}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3FAB156A-0E60-44B4-B547-BDFDEB478CC2}

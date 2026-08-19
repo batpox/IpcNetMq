@@ -1,20 +1,15 @@
 import json
-import math
-import sys
 
-import win32pipe, win32file, pywintypes
 from IpcPacket import IpcPacket, NameValuePair
 
+def make_reply(in_packet, success, reply_string=None, error=None):
+    out_packet = in_packet.clone()
+    out_packet.sequence_number = in_packet.sequence_number + 1
+    out_packet.action = "SUCCESS" if success else "FAIL"
+    out_packet.status = "Success" if success else (error or "Unknown error")
+    out_packet.reply_string = reply_string
+    return out_packet
 
-#========================================================================
-def convert_to_number(value):
-    try:
-        # Try to convert the value to a float
-        number = float(value)
-        return number
-    except ValueError:
-        # If conversion fails, return None or handle the case as needed
-        return None
     
 #========================================================================
 # Assume name,integer tuples and return squared integers
@@ -66,25 +61,18 @@ def do_get1(inPacket):
     requestString = inPacket.request_string # we don't change anything
     replyString = json.dumps(replyData)
 
-    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, context_string=contextString, request_string=requestString, reply_string=replyString)
-    return outPacket
-
+    return make_reply(
+        inPacket,
+        success=(status == "OK"),
+        reply_string=replyString,
+        error=None if status == "OK" else status,
+    )
+    
 # Update the value in a dictionary by name lookup
 def updateReplyValueByName(pairs_dict, target_name, new_value):
     if target_name in pairs_dict:
         pairs_dict[target_name].value = new_value
         
-def updateValueByName(pair_data, target_name, new_value):
-    for item in pair_data:
-        if item['name'] == target_name:
-            item['value'] = new_value
-            return True  # Key found and value updated
-    return False  # Key not found in any dictionary
-
-def logit(msg):
-    print(msg)
-    return
-
 
 #========================================================================
 # Assume name,integer tuples and return the value raised to the 'n' power
@@ -108,7 +96,7 @@ def do_get2(inPacket):
         try:
             expr = item["name"]
             if ( expr == "nPower"):
-                nPower = int(item("name"))
+                nPower = int(item["value"])
             
         except Exception as e:
             status = f"FAIL:DecodeError={e}" 
@@ -117,8 +105,12 @@ def do_get2(inPacket):
     for item in requestData:
         try:
             expr = item["name"]
+            if expr == "nPower":
+                continue
+            
             intValue = int(item["value"])
             computedValue = 0
+            
             if expr == 'exprOne':
                 computedValue = intValue ** nPower
                 #xx = replyData["stateOne"]
@@ -131,7 +123,7 @@ def do_get2(inPacket):
                 updateValueByName(replyData, 'stateThree', str(computedValue)) 
             elif expr == 'exprFour':
                 computedValue = intValue ** nPower
-                updateValueByName(replyData, 'stateThree', str(computedValue)) 
+                updateValueByName(replyData, 'stateFour', str(computedValue)) 
             else:
                 status = f"FAIL:Expression={expr}"
                 #esponseItem = [exprName, f'Argument={exprName} unknown']
@@ -145,9 +137,12 @@ def do_get2(inPacket):
     # Create the returned packet
     replyString = json.dumps(replyData)
 
-    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, context_string=inPacket.context_string, request_string=inPacket.context_string, reply_string=replyString)
-    return outPacket
-
+    return make_reply(
+        inPacket,
+        success=(status == "OK"),
+        reply_string=replyString,
+        error=None if status == "OK" else status,
+    )
 #========================================================================
 # Assume name,integer tuples and return squared integers
 def do_getSolarData(inPacket):
@@ -193,9 +188,13 @@ def do_getSolarData(inPacket):
     requestString = inPacket.request_string # we don't change anything
     replyString = json.dumps(replyData)
 
-    outPacket = IpcPacket(sequence_number=inPacket.sequence_number, action=status, request_string=inPacket.request_string, reply_string=replyString)
-    return outPacket
-
+    return make_reply(
+        inPacket,
+        success=(status == "OK"),
+        reply_string=replyString,
+        error=None if status == "OK" else status,
+)
+    
 def getValueByName(pairData, name):
     """
     Returns the value associated with a given name in pairData, 
@@ -219,6 +218,7 @@ def getValueByName(pairData, name):
     # Return None if name not found
     return None
 
+
 # Search through the pair_data and upon finding target_name update with new value        
 def updateValueByName(pair_data, target_name, new_value):
     for item in pair_data:
@@ -231,14 +231,18 @@ def logit(msg):
     print(msg)
     return
 
-def convert_to_number(s):
-    # your existing method can be more robust; this is fine for the example
+#========================================================================
+def convert_to_number(value):
     try:
-        if s is None:
+        if value is None:
             return None
-        if isinstance(s, (int, float)):
-            return float(s)
-        return float(str(s).strip())
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        return float(str(value).strip())
+    except ValueError:
+        # If conversion fails, return None or handle the case as needed
+        return None
     except Exception:
         return None
 
@@ -268,12 +272,17 @@ def handle_do_get1(inPacket):
         out_reply_list.append({"name": name, "value": out_val})
 
     # write inner JSON text back into the packet
-    inPacket.reply_string = json.dumps(out_reply_list, separators=(",", ":"))
-    inPacket.status = "Success"
-    inPacket.action = "SUCCESS"
-    return inPacket
+    reply_string = json.dumps(
+        out_reply_list,
+        separators=(",", ":"),
+    )
 
-import json
+    return make_reply(
+        inPacket,
+        success=True,
+        reply_string=reply_string,
+)
+    
 
 def loads_inner_json_text(s):
     """
