@@ -415,7 +415,7 @@ An observed localhost interoperability test using the supplied .NET client and P
 | --- | --- | --- | ---: |
 | C# client → Python server → C# client | Loopback TCP, NetMQ/pyzmq, JSON | Small `IpcPacket` request/reply | **210 μs** |
 
-That latency corresponds to a theoretical maximum of approximately 4,760 sequential round trips per second before application work. It is not a measured sustained-throughput result.
+That latency corresponds to a theoretical maximum of approximately 4,760 sequential round trips per second before application work (and yes, it is 210 microseconds, not milliseconds). It is not a measured sustained-throughput result, and this is on the same machine (IP loopback).
 
 The figure is an informal development measurement, not a controlled cross-platform benchmark. Results depend on processor, operating system, power state, Python and .NET versions, payload size, logging, debugger attachment, endpoint type, and server handler work.
 
