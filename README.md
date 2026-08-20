@@ -1,347 +1,572 @@
-# Stride Generate Simple Mesh and Marching Cube From Compute Shader - intro
+# IpcNetMq
 
-## Introduction
+<p align="center">
+  <img src="Resources/IpcNetMq.png" alt="IpcNetMq logo" width="256">
+</p>
 
-This project aims to provide a practical implementation of generating simple 3D meshes and applying the Marching Cubes algorithm using a Compute Shader in Stride (formerly known as Xenko). It offers a foundation for creating complex voxel-based terrain, medical imaging, or other applications where surface reconstruction from volumetric data is required.
+IpcNetMq is a small request/reply interprocess communication library for .NET, built on [NetMQ](https://github.com/zeromq/netmq). It provides a structured JSON packet protocol, synchronous and asynchronous .NET client APIs, blocking and non-blocking .NET server modes, and a compatible Python server example using [pyzmq](https://pyzmq.readthedocs.io/).
 
-GeneateMesh :
-![image](https://github.com/Nicogo1705/Stride-Generate-Simple-Mesh-And-Marching-Cube-From-ComputeShader/assets/20603105/df8b1373-c3ad-42b2-b9b2-a105805d3abb)
+The library is intended for applications that need a clean process boundary between .NET and another process or language—for example, scientific simulations, neural-network inference, hardware interfaces, and independently restartable services—without embedding Python or another runtime inside the .NET process.
 
-GenerateMarchingCube
-![image](https://github.com/Nicogo1705/Stride-Generate-Simple-Mesh-And-Marching-Cube-From-ComputeShader/assets/20603105/d5e4067f-8140-40fd-9547-0ffb75137d9b)
-![image](https://github.com/Nicogo1705/Stride-Generate-Simple-Mesh-And-Marching-Cube-From-ComputeShader/assets/20603105/70a16eeb-14a4-49bc-a3cc-758791a9ff89)
+## Key Features
 
+- NetMQ/ZeroMQ `REQ`/`REP` transport over configurable endpoints such as `tcp://127.0.0.1:5555`.
+- Targets .NET Framework 4.8, .NET 8, and .NET 10.
+- One-frame UTF-8 JSON wire format based on `IpcPacket`.
+- Automatic request/reply sequence numbering and validation.
+- Synchronous and asynchronous .NET client calls.
+- Dedicated client I/O thread so a NetMQ socket remains owned by one thread.
+- Automatic client reconnection after send or receive failures.
+- Blocking server loop for console and service applications.
+- Non-blocking polling server API for game loops and simulation update loops.
+- Canonical name/value payload helpers with tolerant JSON deserialization.
+- C# client, C# server, and interoperable Python server examples.
+- Out-of-process isolation: independent runtimes, dependencies, memory, failure handling, and restart behavior.
 
-**Context of Use**
+## Requirements
 
-The project finds relevance in various contexts, including but not limited to:
+### .NET
 
-- **3D Visualization:** It enables the conversion of volumetric data, such as medical scans or scientific simulations, into visually appealing 3D models.
-- **Game Development:** Game developers can use this technique to create dynamic terrains, destructible environments, or procedural content generation.
-- **Scientific Simulations:** Researchers can visualize complex simulations in 3D, facilitating data analysis and comprehension.
-- **Computer Graphics:** This project contributes to the field of computer graphics, offering insights into GPU-based mesh generation techniques.
+- .NET 10 SDK for the supplied C# examples.
+- .NET 8 SDK for the test project.
+- Visual Studio 2026 or the `dotnet` command-line tools.
+- NetMQ 4.0.4.3.
+- System.Text.Json 10.0.11.
 
-# Informations - Compute shader & Mesh Generation
+The library itself targets:
 
-## GenerateMesh.sdsl
+```text
+net48
+net8.0
+net10.0
+```
 
-### Overview
+### Python example
 
-The `GenerateMesh` compute shader is designed to create a simple triangle mesh using the Stride (formerly known as Xenko) game engine's compute shader capabilities. This document provides detailed information about the constants, structures, buffers, and methods used in this shader.
+- Python 3.11 or later recommended.
+- pyzmq.
 
-### Constants
+Install the Python dependency with:
 
-- `PointCount`: This constant defines the number of voxel points to process in the shader. It is stored in a constant buffer (`cbuffer`) named `param`.
+```powershell
+py -3.11 -m pip install pyzmq
+```
 
-### Structures
+## Quick Start
 
-#### `VoxelPoint`
+### 1. Build the solution
 
-- `float3 Position`: A structure representing a voxel point's 3D position.
+```powershell
+dotnet build IpcNetMq.sln -c Release
+```
 
-#### `VertexOutput`
+### 2. Start the C# server
 
-- `float3 Position`: The 3D position of a vertex.
-- `float3 Normal`: The normal vector of the vertex.
-- `float2 TextureCoordinate`: The texture coordinates of the vertex.
+```powershell
+dotnet run --project .\Examples\TestServerCSharp\TestServerIpc.csproj -- tcp://127.0.0.1:5555
+```
 
-### Buffers
+### 3. Start the C# client in another terminal
 
-- `VoxelPointBuffer`: This read-write structured buffer contains voxel point data.
-- `VertexBuffer`: This read-write structured buffer holds vertex data, including position, normal, and texture coordinates.
-- `IndexBuffer`: This read-write structured buffer stores vertex indices.
+```powershell
+dotnet run --project .\Examples\TestClientCSharp\TestClientIpc.csproj -- tcp://127.0.0.1:5555
+```
 
-### Methods
+The client repeatedly sends an `IpcPacket`, waits for the matching reply, validates the sequence number, and periodically reports average round-trip time.
 
-#### `void Compute()`
+## Basic Client Usage
 
-- This method is the entry point for the compute shader.
-- It calculates vertex and index offsets based on the `dispatchThreadID`.
-- If the `dispatchThreadID` exceeds `PointCount`, the method returns without performing any further calculations.
-- For each voxel point, it generates a simple triangle based on the voxel point's position and normal.
-- The generated vertices are stored in the `VertexBuffer` along with their attributes.
-- The vertex indices are stored in the `IndexBuffer` to define the triangles.
+Create one `IpcClientNetMq` for each logical client connection. The current client API queues calls onto a dedicated I/O thread; do not call `OpenConnection()` when using `CallIpcMethod()` or `CallIpcMethodAsync()` because the dispatcher opens and reconnects the socket as needed.
 
-### Usage
+```csharp
+using IpcNetMq;
+using IpcNetMq.IpcNetMqHelpers;
 
-You can customize the mesh generation logic within the `Compute()` method to suit your specific needs. The provided code generates a simple triangle for each voxel point, but you can modify it to create more complex mesh structures.
+const string address = "tcp://127.0.0.1:5555";
 
-This compute shader can be integrated into various applications, such as 3D visualization, game development, scientific simulations, and computer graphics, to efficiently generate 3D meshes from voxel data.
+using var client = new IpcClientNetMq("SimulationClient", address);
 
-## GenerateMeshFromPointsComponent.cs
+var request = new IpcPacket
+{
+    Action = "do_get1",
+    ContextString = JsonHelpers.BuildNameValuePairs(
+        ("SimTime", "12.5")),
+    RequestString = JsonHelpers.BuildNameValuePairs(
+        ("exprOne", "10"),
+        ("exprTwo", "23.4")),
+    ReplyString = JsonHelpers.BuildNameValuePairs(
+        ("stateOne", ""),
+        ("stateTwo", ""))
+};
 
-### Overview
+IpcPacket reply = await client.CallIpcMethodAsync(
+    request,
+    sendTimeout: TimeSpan.FromSeconds(2),
+    receiveTimeout: TimeSpan.FromSeconds(5));
 
-The `GenerateMeshFromPointsComponent` is a C# script designed to work with the Stride game engine. It provides functionality for generating a 3D mesh from voxel points using a compute shader. This script includes data structures, buffers, and methods to facilitate the mesh generation process.
+Console.WriteLine($"{reply.Action}: {reply.ReplyString}");
+```
 
-### Structures
+The client assigns `SequenceNumber`. Application code should not attempt to assign or modify it.
 
-#### `VoxelPoint`
+For callers that cannot use `async`, the equivalent blocking call is:
 
-- `Vector3 Position`: Represents the 3D position of a voxel point. This structure is used as input data for the shader.
+```csharp
+IpcPacket reply = client.CallIpcMethod(
+    request,
+    sendTimeout: TimeSpan.FromSeconds(2),
+    receiveTimeout: TimeSpan.FromSeconds(5));
+```
 
-### Fields
+## Basic Server Usage
 
-- `private VoxelPoint[] VoxelPoints`: An array containing voxel points. You can customize this array to specify the voxel point positions.
+### Blocking server loop
 
-- `public float marchingRadius`: A public field that can be set in the Unity Inspector. It determines a radius used in the shader.
+The blocking server loop is appropriate for a console program, background service, or dedicated server thread:
 
-### Buffers
+```csharp
+using IpcNetMq;
 
-- `private Buffer<VoxelPoint> voxelPointBuffer`: A buffer that holds the voxel point data. This buffer is used as input for the compute shader.
+const string address = "tcp://127.0.0.1:5555";
 
-- `private Buffer<VertexPositionNormalTexture> vertexBuffer`: A buffer for storing vertex data generated by the compute shader. It is used for rendering.
+using var server = new IpcServerNetMq("SimulationServer", address);
+server.RunIpcServerLoop(HandleAction);
 
-- `private Buffer<uint> indexBuffer`: A buffer for storing vertex indices generated by the compute shader. It is also used for rendering.
+static IpcPacket HandleAction(IpcPacket request)
+{
+    return request.Action switch
+    {
+        "Ping" => new IpcPacket
+        {
+            Action = "SUCCESS",
+            Status = "Success",
+            ReplyString = "Pong"
+        },
 
-### Methods
+        _ => new IpcPacket
+        {
+            Action = "FAIL",
+            Status = $"Unknown action: {request.Action}"
+        }
+    };
+}
+```
 
-#### `public override void Start()`
+`RunIpcServerLoop()` receives requests and invokes the handler serially. The server assigns the reply sequence number and copies the request's `ClientId` into the reply.
 
-- This method is called when the script starts.
-- It initializes the buffers, sets up the compute effect shader, and creates an entity with a mesh for rendering.
+### Non-blocking polling server
 
-#### `public override void Update()`
+Polling mode is intended for hosts that own their main loop, such as Stride, another game engine, or a discrete-event simulation:
 
-- This method is called every frame to update the script's logic.
-- It allows you to interactively modify voxel point positions using keyboard input.
-- The voxel point buffer is updated with the modified positions.
-- The compute shader parameters are set and executed to generate the mesh.
-- The shader's unordered access views (UAVs) are unset to release buffer access for rendering.
+```csharp
+private readonly IpcServerNetMq server =
+    new("SimulationServer", "tcp://127.0.0.1:5555");
 
-### Private Method - `UnsetUAV()`
+public void Start()
+{
+    server.EnsurePollingReady();
+}
 
-- This method is used internally to unset unordered access views (UAVs) for buffers and textures. It is essential to release buffer access after the compute shader has finished using them.
+public void Update()
+{
+    if (!server.TryGetRequest(out IpcPacket request))
+        return;
 
-### Usage
+    IpcPacket reply = HandleAction(request);
+    server.SendReply(reply);
+}
+```
 
-1. Attach this script to a GameObject in your Stride project.
-2. Customize the `VoxelPoints` array to define the initial positions of voxel points.
-3. Use keyboard input (NumPad keys) to interactively modify voxel point positions during runtime.
-4. The mesh generation process occurs in the compute shader.
-5. The generated mesh is associated with an entity and rendered in the scene.
+`TryGetRequest()` never blocks. After it returns `true`, `SendReply()` must be called exactly once before the server can receive another request. This is required by the ZeroMQ `REP` socket state machine.
 
-# Informations - Marching cube
+For a frame-based host that wants to limit IPC work per update, poll up to a configured maximum:
 
-## GenerateMarchingCube.sdsl
+```csharp
+for (int i = 0; i < maxRequestsPerFrame; i++)
+{
+    if (!server.TryGetRequest(out IpcPacket request))
+        break;
 
-### Overview
+    server.SendReply(HandleAction(request));
+}
+```
 
-The `GenerateMarchingCube` compute shader is designed to create a triangle mesh using the Marching Cubes algorithm within the Stride (formerly known as Xenko) game engine. This shader converts voxel data into a detailed and visually appealing 3D surface representation. This document provides detailed information about the constants, structures, buffers, and methods used in this shader.
+With a `REP` socket, there can only be one received-but-not-yet-replied request at a time, so each successful poll must still be paired immediately with its reply.
 
-### Constants
+## Architecture
 
-- `uint SizeX`: The size of the voxel grid along the X-axis.
-- `uint SizeY`: The size of the voxel grid along the Y-axis.
-- `uint SizeZ`: The size of the voxel grid along the Z-axis.
-- `float isoLevel`: The isosurface threshold value.
-- `int maxVertices`: The maximum number of vertices the shader can generate.
+```mermaid
+flowchart LR
+    A["Application code"] --> B["IpcClientNetMq queue"]
+    B --> C["Dedicated NetMQ I/O thread"]
+    C --> D["REQ/REP JSON frame"]
+    D --> E["C# or Python server"]
+```
 
-### Structures
+### Client
 
-#### `VoxelData`
+`IpcClientNetMq` owns a NetMQ `RequestSocket` and a bounded work queue. Calls to `CallIpcMethodAsync()` enqueue work; a single background I/O thread performs the following operations:
 
-- `float value`: Represents the value associated with a voxel point.
+1. Create or reconnect the socket.
+2. Assign the next odd request sequence number.
+3. Serialize the request to JSON.
+4. Send one ZeroMQ frame.
+5. Receive one reply frame.
+6. Deserialize the reply.
+7. Verify that its sequence number is the request number plus one.
+8. Complete the caller's task.
 
-#### `VertexOutput`
+The single I/O thread is intentional. NetMQ sockets are thread-affine and must not be used concurrently from arbitrary application threads.
 
-- `float3 Position`: The 3D position of a vertex.
-- `float3 Normal`: The normal vector of the vertex.
-- `float2 TextureCoordinate`: The texture coordinates of the vertex.
+The work queue is currently bounded to 1,024 calls. REQ/REP permits only one request in flight on a socket, so queued requests are processed serially.
 
-### Static Arrays
+### Server
 
-- `cornerIndexAFromEdge[12]`: An array defining indices of corner points A for each of the 12 edges of a cube.
-- `cornerIndexBFromEdge[12]`: An array defining indices of corner points B for each of the 12 edges of a cube.
+`IpcServerNetMq` derives from `IpcServerBaseNetMq`, which owns the NetMQ `ResponseSocket`, endpoint binding, shutdown, retry, and disposal behavior.
 
-### Buffers
+The concrete server exposes two hosting models:
 
-- `RWStructuredBuffer<int> edges`: A read-write structured buffer used to store edge data.
-- `RWStructuredBuffer<int> triangulation`: A read-write structured buffer used for triangulation data.
-- `RWStructuredBuffer<VoxelData> points`: A read-write structured buffer holding voxel data.
-- `RWStructuredBuffer<VertexOutput> triangles`: A read-write structured buffer to store generated triangle vertices.
-- `RWStructuredBuffer<uint> trianglesCount`: A read-write structured buffer to keep track of the triangle count.
+- `RunIpcServerLoop(...)`: blocking, serial request processing.
+- `EnsurePollingReady()` + `TryGetRequest(...)` + `SendReply(...)`: non-blocking integration into an externally controlled loop.
 
-### Methods
+Do not mix blocking-loop mode and polling mode on the same server instance.
 
-#### `void Compute()`
+### Wire protocol
 
-- This method is the entry point for the compute shader.
-- It calculates vertex and index offsets based on the dispatchThreadID.
-- If the thread ID exceeds the voxel grid dimensions, it returns.
-- The algorithm determines the cube index based on the voxel values.
-- For each cube, it generates triangles using the Marching Cubes algorithm.
-- Triangles are generated by interpolating vertex positions based on the isosurface threshold.
-- The resulting vertices are stored in the `triangles` buffer.
+Each transaction uses one UTF-8 JSON frame in each direction. No manual byte count, delimiter, or length prefix is added; ZeroMQ preserves frame boundaries.
 
-#### `bool Same(float3 a, float3 b)`
+The outer object is `IpcPacket`:
 
-- A helper method to check if two 3D points are the same.
+| JSON property | C# property | Purpose |
+| --- | --- | --- |
+| `version` | `Version` | Packet schema version; currently `V260107`. |
+| `client_id` | `ClientId` | Logical client identifier. |
+| `sequence_number` | `SequenceNumber` | Odd request number or following even reply number. |
+| `world_time` | `WorldTime` | UTC packet construction time. |
+| `action` | `Action` | Operation or method name. |
+| `status` | `Status` | Result status or diagnostic text. |
+| `options_string` | `OptionsString` | JSON text for IPC options or transaction metadata. |
+| `context_string` | `ContextString` | JSON text for persistent or call-specific context. |
+| `request_string` | `RequestString` | JSON text containing request arguments. |
+| `reply_string` | `ReplyString` | JSON text containing the reply or a reply template. |
 
-#### `float3 interpolateVerts(float4 v1, float4 v2)`
+The four `*_string` fields are strings in the outer JSON packet. When they contain structured data, that inner data is serialized as JSON text and is therefore escaped once by the outer packet serializer.
 
-- A helper method to interpolate between two 3D vertices based on the isosurface threshold.
+Example outer packet:
 
-#### `uint indexFromCoord(uint3 p)`
+```json
+{
+  "version": "V260107",
+  "client_id": "SimulationClient",
+  "sequence_number": 1,
+  "world_time": "2026-08-19T18:00:00.0000000Z",
+  "action": "do_get1",
+  "status": "",
+  "options_string": "",
+  "context_string": "{\"SimTime\":\"12.5\"}",
+  "request_string": "{\"exprOne\":\"10\"}",
+  "reply_string": "{\"stateOne\":\"\"}"
+}
+```
 
-- A helper method to calculate the buffer index from voxel grid coordinates.
+### Sequence-number contract
 
-### Usage
+Sequence numbers are transport metadata owned by IpcNetMq:
 
-- Attach this compute shader to an appropriate component or entity within your Stride project.
-- Set the constants, particularly `SizeX`, `SizeY`, `SizeZ`, `isoLevel`, and `maxVertices` as needed.
-- Provide voxel data in the `points` buffer.
-- The compute shader will generate triangle vertices and store them in the `triangles` buffer.
-- You can then use the generated vertices for rendering and visualization.
+| Message | Sequence |
+| --- | ---: |
+| First request | 1 |
+| First reply | 2 |
+| Second request | 3 |
+| Second reply | 4 |
 
-## GenerateMeshMarchingCubeComponent.cs
+- The .NET client assigns odd request numbers.
+- The server assigns `request.SequenceNumber + 1` to the reply.
+- The client rejects a reply whose sequence number does not match the expected even number.
+- Application handlers should construct reply content but should not set `SequenceNumber`.
 
-### Overview
+The Python server follows the same contract explicitly.
 
-The `GenerateMeshMarchingCubeComponent` class is designed to facilitate the generation of a triangle mesh using the Marching Cubes algorithm within the Stride game engine. This component provides functionality for converting voxel data into a detailed 3D surface representation. This document provides a comprehensive overview of the class and its usage.
+### Name/value payloads
 
-### Fields
+The canonical inner payload is a JSON array of lowercase `name`/`value` objects:
 
-#### `public Vector3 ChunkSize`
+```json
+[
+  { "name": "exprOne", "value": "10" },
+  { "name": "exprTwo", "value": "23.4" }
+]
+```
 
-- Type: `Vector3`
-- Description: An integer vector representing the size of the voxel grid along the X, Y, and Z axes.
+Create and read these payloads with:
 
-#### `public float IsoLevel`
+```csharp
+var values = new List<NameValuePair>
+{
+    new("exprOne", "10"),
+    new("exprTwo", "23.4")
+};
 
-- Type: `float`
-- Description: A floating-point value indicating the isosurface threshold level.
+string json = NameValuePairJson.SerializeList(values);
 
-#### `public int MaxVectrices`
+List<NameValuePair> decoded =
+    NameValuePairJson.DeserializeListTolerant<NameValuePair>(json);
+```
 
-- Type: `int`
-- Description: The maximum number of vertices that the shader can generate. This value is calculated based on `ChunkSize` and is used to allocate buffers.
+The tolerant deserializer accepts an array, one object, empty input, or legacy double-encoded JSON. New code should emit the canonical single-encoded array form.
 
-### Structs
+`JsonHelpers.BuildNameValuePairs(...)` remains available for the legacy dictionary representation used by the current examples.
 
-#### `public struct VoxelData`
+## Python Server Example
 
-- Description: A struct representing voxel data, containing a single `float` value.
+The Python example demonstrates that the protocol is language-neutral. A .NET `RequestSocket` can communicate directly with a Python pyzmq `REP` socket because both use the same ZeroMQ framing and JSON schema.
 
-### Fields and Buffers
+The example is located in:
 
-- `private VoxelData[] VoxelPoints`: An array of `VoxelData` representing voxel data on the CPU side.
+```text
+Examples/ServerPython/
+├── IpcPacket.py
+├── ServerZeroMQ.py
+└── UserActions.py
+```
 
-- `private Buffer<int> edges`: A buffer used for holding constant data related to Marching Cubes on the GPU.
+### Run the Python server
 
-- `private Buffer<int> triangulation`: A buffer used for holding constant triangulation data on the GPU.
+From the repository root:
 
-- `private Buffer<VoxelData> points`: A buffer for storing input voxel data on the GPU.
+```powershell
+cd .\Examples\ServerPython
+py -3.11 -m pip install pyzmq
+py -3.11 .\ServerZeroMQ.py tcp://127.0.0.1:5555
+```
 
-- `private Buffer<VertexPositionNormalTexture> triangles`: A buffer for storing the output triangle vertices on the GPU.
+If no endpoint is supplied, the script prompts for one and defaults to `tcp://127.0.0.1:5555`.
 
-- `private Buffer<uint> trianglesCount`: A buffer for maintaining a counter of generated triangles on the GPU.
+### Run the C# client against Python
 
-### Methods
+In a second terminal, from the repository root:
 
-#### `private void SetUpRender()`
+```powershell
+dotnet run --project .\Examples\TestClientCSharp\TestClientIpc.csproj -- tcp://127.0.0.1:5555
+```
 
-- Description: Sets up rendering-related objects, including the compute shader and rendering contexts.
+The client sends `do_get1` requests. `ServerZeroMQ.py` deserializes the packet, dispatches the action to `UserActions.py`, increments the sequence number for the reply, serializes the result, and returns one UTF-8 JSON frame.
 
-#### `private void SetUpVoxelPoints()`
+### Add a Python action
 
-- Description: Initializes the `VoxelPoints` array with voxel data based on the specified `ChunkSize` and `IsoLevel`.
+Define a handler in `UserActions.py`:
 
-#### `private void SetUpBuffers()`
+```python
+def handle_ping(in_packet):
+    out_packet = in_packet.clone()
+    out_packet.sequence_number = in_packet.sequence_number + 1
+    out_packet.action = "SUCCESS"
+    out_packet.status = "Success"
+    out_packet.reply_string = "Pong"
+    return out_packet
+```
 
-- Description: Allocates GPU buffers for edges, triangulation, voxel data, triangle vertices, and triangle counts.
+Then register it in `ServerZeroMQ.py`:
 
-#### `private void SetUpParameters()`
+```python
+action_handlers = {
+    "Ping": handle_ping,
+    "do_get1": handle_do_get1,
+    "do_get2": do_get2,
+}
+```
 
-- Description: Sets up the parameters for the compute shader, including constants, buffers, and resources.
+Every Python `REP` request must receive exactly one reply, including invalid actions and error cases. Otherwise the socket cannot receive the next request.
 
-#### `private void DefineStaticsValues()`
+## Failure and Recovery Behavior
 
-- Description: Defines static values for the `edges` and `triangulation` GPU buffers.
+### Client behavior
 
-#### `private void DefineDynamicsValues()`
+- Default send timeout: 2 seconds.
+- Default receive timeout: 5 seconds.
+- A failed send triggers one reconnect and one retry.
+- A request that was sent but did not receive a valid reply causes the REQ socket to be recreated before subsequent work.
+- A sequence mismatch completes the call with an exception.
+- Cancellation completes the associated task as canceled.
+- Calls are queued and processed serially.
 
-- Description: Updates dynamic GPU data, resets the triangle count, and updates the `points` buffer.
+Timeouts may occur normally while debugging a server. The caller should catch `TimeoutException`, apply an appropriate backoff, and retry at the application level when the operation is safe to repeat.
 
-#### `private void SetUpMeshAndEntity()`
+### Server behavior
 
-- Description: Generates the mesh using the computed triangles and attaches it to a Stride entity for rendering.
+- Requests are processed serially.
+- The blocking loop closes and rebuilds its socket after processing or socket failures.
+- Socket-open failures use a capped linear retry delay of up to five seconds.
+- The loop exits after ten consecutive failed attempts to open the socket.
+- Polling mode is non-blocking but requires exactly one reply for every request received.
+- Disposal closes/unbinds the socket and invokes NetMQ cleanup on a best-effort basis.
 
-#### `public override void Start()`
+### Delivery semantics
 
-- Description: Initializes the component by setting up rendering, voxel data, buffers, parameters, and the mesh.
+IpcNetMq provides request/reply correlation; it does not provide durable messaging or exactly-once execution.
 
-#### `public override void Update()`
+If a server completes an operation but its reply is lost, the client can observe only a timeout. Retrying a state-changing action may execute it again. Such operations should carry an application-level operation ID or implement idempotency when duplicate execution would be unsafe.
 
-- Description: Updates the component, triggering the Marching Cubes computation, binding the vertex shader, and updating GPU buffers. The mesh is only regenerated when the voxel data changes.
+## Benchmarks
 
-### Private Helper Methods
+An observed localhost interoperability test using the supplied .NET client and Python pyzmq server measured approximately:
 
-- `private void UnsetUAV(CommandList commandList, ParameterCollection parameters, ParameterKey resourceKey)`: A private helper method for unsetting unordered access views.
+| Path | Transport | Payload | Average round trip |
+| --- | --- | --- | ---: |
+| C# client → Python server → C# client | Loopback TCP, NetMQ/pyzmq, JSON | Small `IpcPacket` request/reply | **210 μs** |
 
-### Usage
+That latency corresponds to a theoretical maximum of approximately 4,760 sequential round trips per second before application work. It is not a measured sustained-throughput result.
 
-- Attach this component to a suitable entity within your Stride project.
-- Set the `ChunkSize`, `IsoLevel`, and other relevant parameters as needed.
-- Initialize the `VoxelPoints` array with your voxel data.
-- The Marching Cubes algorithm will generate the mesh on the GPU when the voxel data changes.
-- The mesh is automatically attached to the entity for rendering.
+The figure is an informal development measurement, not a controlled cross-platform benchmark. Results depend on processor, operating system, power state, Python and .NET versions, payload size, logging, debugger attachment, endpoint type, and server handler work.
 
-## TriangleTable.cs
+For simulation and neural-network calls that take milliseconds or longer, the measured IPC cost is generally small relative to the invoked work. The process boundary also provides benefits that in-process Python integration does not: runtime isolation, independent dependency environments, failure containment, restartability, easier diagnostics, and the option to move the service to another machine later.
 
-### Overview
+When publishing benchmark results, record at least:
 
-The `TriangleTable` class is a utility class that provides static tables used in the Marching Cubes algorithm for generating triangle meshes from voxel data. These tables are essential for determining the configuration of vertices and triangles during the mesh generation process. This document provides an overview of the class and its purpose.
+- CPU and operating system.
+- .NET and Python versions.
+- NetMQ and pyzmq versions.
+- Release versus Debug build.
+- Transport endpoint.
+- Payload size.
+- Warm-up count and measured iteration count.
+- Median, mean, p95, p99, minimum, and maximum latency.
+- Whether logging and a debugger were enabled.
 
-### Fields
+## Directory Layout
 
-#### `public static int[] edgeTable`
+```text
+IpcNetMq/
+├── IpcNetMq.csproj                 Main multi-target library project
+├── IpcNetMq.sln                    Visual Studio solution
+├── IpcPacket.cs                    Wire packet and sequence metadata
+├── IpcClientNetMq.cs               REQ client, queue, I/O thread, reconnect logic
+├── IpcServerNetMq.cs               REP server: blocking and polling APIs
+├── IIpcClient.cs                   Legacy/general client interface
+├── IIpcServer.cs                   Legacy/general server interface
+├── IpcNetMqHelpers/
+│   ├── IpcServerBase.cs            Socket binding, retry loop, disposal
+│   ├── JsonHelpers.cs              Packet and payload serialization
+│   ├── NameValuePair.cs            Canonical name/value DTO and JSON options
+│   ├── NameValuePairSerialization.cs
+│   │                                Tolerant name/value serialization
+│   ├── CommunicationHelpers.cs     Endpoint hashing helper
+│   ├── Extensions.cs               Conversion and string helpers
+│   └── Logger.cs                   Example asynchronous file logger
+├── Examples/
+│   ├── TestClientCSharp/           .NET 10 client and timing example
+│   ├── TestServerCSharp/           .NET 10 blocking/polling server example
+│   └── ServerPython/               Python/pyzmq interoperable server
+├── IpcNetMq.Tests/                 .NET 8 xUnit serialization tests
+├── Documentation/                  Additional project documentation
+├── Resources/                      Package icon assets
+└── LICENSE.txt                     Repository license text
+```
 
-- Type: `int[]`
-- Description: An array representing the edge table used in the Marching Cubes algorithm. This table contains 256 integer values that define the edges connecting cube vertices in various configurations.
+`IpcServerNetMqBeta.cs` is experimental code and is not part of the documented primary API.
 
-#### `public static int[] triTable`
+## Build, Test, and Package
 
-- Type: `int[]`
-- Description: An array representing the triangulation table used in the Marching Cubes algorithm. This table contains 256x16 integer values that specify the vertex indices forming triangles for each possible cube configuration.
+### Build
 
-### Usage
+```powershell
+dotnet build IpcNetMq.sln -c Release
+```
 
-The `TriangleTable` class provides precomputed tables that are crucial for the Marching Cubes algorithm's functionality. You can get tables by calling them as they are static.
+To build one target explicitly:
 
-## ChunkContainer.cs
+```powershell
+dotnet build IpcNetMq.csproj -c Release -f net10.0
+```
 
-### Overview
+### Test
 
-The `ChunkContainer` class is responsible for creating and managing a grid of chunks within a 3D world. Each chunk represents a portion of the world and can contain voxel data. This document provides an overview of the class and its purpose.
+```powershell
+dotnet test .\IpcNetMq.Tests\IpcNetMq.Tests.csproj -c Release
+```
 
-### Fields
+The current automated tests focus on packet and name/value JSON serialization. End-to-end transport and concurrency tests should be added as the protocol evolves.
 
-#### `public Vector3 WorldSize`
+### Package
 
-- Type: `Vector3`
-- Description: A vector specifying the size of the entire world in three dimensions (X, Y, and Z). This field determines the overall size of the world containing the grid of chunks.
+The main project is configured to generate a NuGet package on build. It can also be packed explicitly:
 
-#### `public Vector3 ChunkSize`
+```powershell
+dotnet pack IpcNetMq.csproj -c Release
+```
 
-- Type: `Vector3`
-- Description: A vector specifying the size of each individual chunk in the grid. Chunks are blocks within the world, and this field determines their dimensions.
+Package outputs are written beneath `bin\Release`.
 
-### Methods
+## Troubleshooting
 
-#### `public override void Start()`
+### `Address already in use`
 
-- Description: This method is called when the script starts executing. Within this method, the class creates a grid of chunks within the world based on the specified `WorldSize` and `ChunkSize` values.
+Only one server can bind a particular endpoint. Stop the existing server or select another port, such as `tcp://127.0.0.1:5556`.
 
-### Usage
+### Client receive timeout
 
-The `ChunkContainer` class allows you to create and manage a grid of chunks within your 3D world. Use as a component to an Entity in stride.
+Confirm that:
 
-## Credits
+- The server is running and bound to the same address.
+- The server sends exactly one reply for every request.
+- The action name is registered by the server.
+- The server handler did not throw before sending its reply.
+- A debugger pause did not exceed the receive timeout.
 
-Special thanks to Tebjan for valuable contributions to render programming, and to Sebastian Lague for insights and resources related to the Marching Cubes algorithm. Sebastian Lague's GitHub repository [here](https://github.com/SebLague/Marching-Cubes/tree/master) and his informative YouTube tutorial [here](https://www.youtube.com/watch?v=M3iI2l0ltbE) have been instrumental in this project's development.
+The .NET client recreates its REQ socket after an incomplete request/reply exchange.
 
-## Notes
+### Sequence mismatch
 
-This README was written with the assistance of ChatGPT, a language model developed by OpenAI. ( well, i guess it's fair to let the chatbot make it's ad (: )
-If you encounter any errors, have suggestions for improvements, please don't hesitate to create an issue. Your feedback and contributions are highly appreciated, and they help improve the quality of this project.
+Do not set `IpcPacket.SequenceNumber` in application handlers. The client owns request numbering; the .NET server assigns the next even reply number. A non-.NET server must return `request.sequence_number + 1`.
+
+### NetMQ socket thread error
+
+Do not access the underlying socket from another thread. Use `CallIpcMethod()` or `CallIpcMethodAsync()` so the client dispatcher retains socket ownership.
+
+### Python `IndentationError`
+
+Python indentation is syntax. Use four spaces consistently, avoid mixing tabs and spaces, and compile-check all three example files:
+
+```powershell
+py -3.11 -m py_compile .\IpcPacket.py .\ServerZeroMQ.py .\UserActions.py
+```
+
+### Python cannot import `zmq`
+
+Install pyzmq into the same Python interpreter used to start the server:
+
+```powershell
+py -3.11 -m pip install pyzmq
+py -3.11 -c "import zmq; print(zmq.zmq_version())"
+```
+
+### Python edits appear to have no effect
+
+Confirm that the file being edited is the same file shown in the traceback. In particular, `IpcPacket.py` and a copied file such as `IpcPacket(1).py` are different modules.
+
+## Design Scope and Limitations
+
+- The primary transport pattern is synchronous REQ/REP.
+- One client socket has at most one request in flight.
+- Server handlers run serially.
+- The transport is not a durable queue.
+- Authentication, encryption, authorization, schema negotiation, and service discovery are outside the current library.
+- TCP endpoints exposed beyond loopback require application-specific network security.
+- Large binary payloads are not optimized; the current protocol is JSON-oriented.
+- Higher concurrency may eventually require multiple clients/workers or a different ZeroMQ pattern such as ROUTER/DEALER.
+
+## Contributing
+
+Issues and pull requests should include:
+
+- A clear description of the behavior or protocol change.
+- Tests covering packet compatibility and sequence handling.
+- Updates to both C# and Python examples when the wire contract changes.
+- Benchmark conditions when making performance claims.
+- No application-level assignment of `SequenceNumber`.
+
+Keep wire-format changes backward compatible when possible. If compatibility cannot be maintained, update `IpcPacket.Version` and document the schema change.
+
+## License
+
+See [`LICENSE.txt`](LICENSE.txt) for the repository's license terms. Package metadata and the repository license file should declare the same license before release.
