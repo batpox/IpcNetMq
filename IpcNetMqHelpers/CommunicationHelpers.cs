@@ -7,15 +7,16 @@ using System.Threading.Tasks;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
+
+    /// <summary>Provides endpoint naming helpers for inter-process coordination.</summary>
     public static class CommunicationHelpers
     {
-        /// <summary>
-        /// Hash the server address into a legal mutex name of length not to exceed maxLength.
-        /// Remember, you can prepend Global\\ to work across all system processes.
-        /// </summary>
-        /// <param name="serverAddress"></param>
-        /// <param name="maxLength"></param>
-        /// <returns></returns>
+
+        /// <summary>Hashes an endpoint into a name suitable for use as a mutex identifier.</summary>
+        /// <remarks>The application may prepend Global\ to select the global mutex namespace.</remarks>
+        /// <param name="serverAddress">The endpoint string to hash.</param>
+        /// <param name="maxLength">The non-negative maximum length of the resulting identifier; defaults to 20.</param>
+        /// <returns>A sanitized, truncated Base64 representation of the SHA-256 hash.</returns>
         public static string HashServerAddress(string serverAddress, int maxLength = 20)
         {
             // Use SHA256 to generate a hash of the server address

@@ -6,22 +6,20 @@ using System.Text.Json;
 namespace IpcNetMq.IpcNetMqHelpers
 {
 
+    /// <summary>Serializes and reads name/value JSON payloads stored inside IPC packets.</summary>
     public static class NameValuePairJson
     {
-        /// <summary>
-        /// Serialize canonical inner payload: JSON array of {name,value}.
-        /// This string is intended to be stored in IpcPacket.RequestString / ReplyString.
-        /// </summary>
+
+        /// <summary>Serializes name/value pairs as a JSON array for a packet request or reply payload.</summary>
+        /// <param name="pairs">The pairs to serialize, or null for an empty array.</param>
+        /// <returns>The compact JSON array.</returns>
         public static string SerializeList(List<NameValuePair> pairs)
             => JsonSerializer.Serialize(pairs ?? new List<NameValuePair>(), IpcJson.Options);
 
-        /// <summary>
-        /// Deserialize inner payload. Accepts:
-        /// - null/empty -> empty list
-        /// - JSON array -> List&lt;T&gt;
-        /// - single object -> List with one item
-        /// - double-encoded JSON text -> unwrap then parse
-        /// </summary>
+        /// <summary>Reads a JSON array, single object, or once-double-encoded payload as a list.</summary>
+        /// <typeparam name="T">The item type to deserialize.</typeparam>
+        /// <param name="jsonText">The JSON payload; null, empty, or whitespace produces an empty list.</param>
+        /// <returns>The deserialized items, or an empty list for an empty or null JSON payload.</returns>
         public static List<T> DeserializeListTolerant<T>(string jsonText)
         {
             if (string.IsNullOrWhiteSpace(jsonText))

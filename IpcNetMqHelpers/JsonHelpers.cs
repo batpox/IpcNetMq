@@ -5,6 +5,8 @@ using System.Text.Json.Serialization;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
+
+    /// <summary>Provides packet serialization and tolerant list payload helpers.</summary>
     public static class JsonHelpers
     {
         // Shared options (tweak as you like)
@@ -14,15 +16,10 @@ namespace IpcNetMq.IpcNetMqHelpers
             DictionaryKeyPolicy = null
         };
 
-
-
-        /// <summary>
-        /// Deserialize into a list. The string can be:
-        /// - null/empty/whitespace -> empty list
-        /// - a single object: {...}
-        /// - an array: [...]
-        /// - double-encoded JSON string: "\"[...]\"" or "\"{...}\""
-        /// </summary>
+        /// <summary>Reads an array, single object, or once-double-encoded JSON payload as a list.</summary>
+        /// <typeparam name="T">The item type to deserialize.</typeparam>
+        /// <param name="jsonString">The JSON payload; null, empty, or whitespace produces an empty list.</param>
+        /// <returns>The deserialized items, or an empty list for an empty or null JSON payload.</returns>
         public static List<T> DeserializeListFromJsonString<T>(string jsonString)
         {
             try
@@ -58,10 +55,9 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
         }
 
-
-        /// <summary>
-        /// Serialize an IpcPacket to JSON string (outer packet).
-        /// </summary>
+        /// <summary>Serializes an IPC packet using its declared wire property names.</summary>
+        /// <param name="packet">The non-null packet to serialize.</param>
+        /// <returns>The packet as a JSON object.</returns>
         public static string SerializeToJsonString(IpcPacket packet)
         {
             if (packet == null) 
@@ -77,9 +73,9 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
         }
 
-        /// <summary>
-        /// Deserialize an IpcPacket from JSON string (outer packet).
-        /// </summary>
+        /// <summary>Deserializes a JSON object into an IPC packet.</summary>
+        /// <param name="json">The non-empty JSON packet string.</param>
+        /// <returns>The deserialized packet; a null result is rejected.</returns>
         public static IpcPacket DeserializeFromJsonString(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -92,10 +88,9 @@ namespace IpcNetMq.IpcNetMqHelpers
             return packet;
         }
 
-        /// <summary>
-        /// Serialize a list of NameValuePair to JSON string (inner payload).
-        /// Canonical form is a JSON array: [{ "name": "...", "value": "..." }, ...]
-        /// </summary>
+        /// <summary>Serializes name/value pairs as the canonical inner JSON array.</summary>
+        /// <param name="pairList">The pairs to serialize, or null for an empty array.</param>
+        /// <returns>The serialized JSON array.</returns>
         public static string SerializePairListToJsonString(List<NameValuePair> pairList)
         {
             try
@@ -109,13 +104,10 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
         }
 
-        /// <summary>
-        /// Deserialize into a list. Accepts:
-        /// - null/empty/whitespace => empty list
-        /// - JSON array => List<T>
-        /// - single JSON object => List<T> with one item
-        /// - double-encoded JSON text (JSON string containing JSON) => unwrap then parse
-        /// </summary>
+        /// <summary>Reads a name/value payload as a list, accepting arrays, single objects, and once-double-encoded JSON.</summary>
+        /// <typeparam name="T">The item type to deserialize.</typeparam>
+        /// <param name="jsonString">The JSON payload; null, empty, or whitespace produces an empty list.</param>
+        /// <returns>The deserialized items, or an empty list for an empty or null JSON payload.</returns>
         public static List<T> DeserializePairListFromJsonString<T>(string jsonString)
         {
             try
@@ -153,10 +145,10 @@ namespace IpcNetMq.IpcNetMqHelpers
             }
         }
 
-        /// <summary>
-        /// Build a dictionary from name/value tuples and serialize it as JSON string.
-        /// (Legacy helper; your new preferred wire format is List&lt;NameValuePair&gt;.)
-        /// </summary>
+        /// <summary>Serializes name/value tuples as a legacy JSON dictionary.</summary>
+        /// <remarks>For new packet payloads, prefer a JSON array of NameValuePair objects.</remarks>
+        /// <param name="pairs">The pairs to convert; later duplicate names replace earlier values.</param>
+        /// <returns>The serialized dictionary, or an empty JSON object when no pairs are supplied.</returns>
         public static string BuildNameValuePairs(params (string name, string value)[] pairs)
         {
             var dict = new Dictionary<string, string>();
@@ -172,10 +164,10 @@ namespace IpcNetMq.IpcNetMqHelpers
     
 
 
-        /////// //////////////////////////////////////////////////////////////////////////////////
-        /////// </summary>
-        /////// <param name="packet"></param>
-        /////// <returns></returns>
+        //// /////////////////////////////////////////////////
+        //// </summary>
+        //// <param name="packet"></param>
+        //// <returns></returns>
         ////public static string SerializeToJsonString(IpcPacket packet)
         ////{
         ////    return JsonConvert.SerializeObject(packet);
@@ -199,14 +191,14 @@ namespace IpcNetMq.IpcNetMqHelpers
         ////    }
         ////}
 
-        /////// <summary>
-        /////// Deserialize into a list. The string can be a single object (T)
-        /////// or an array. Checks for starting with square bracket ('[') to decide.
-        /////// </summary>
-        /////// <typeparam name="T"></typeparam>
-        /////// <param name="jsonString"></param>
-        /////// <returns></returns>
-        /////// <exception cref="Exception"></exception>
+        //// <summary>
+        //// Deserialize into a list. The string can be a single object (T)
+        //// or an array. Checks for starting with square bracket ('[') to decide.
+        //// </summary>
+        //// <typeparam name="T"></typeparam>
+        //// <param name="jsonString"></param>
+        //// <returns></returns>
+        //// <exception cref="Exception"></exception>
         ////public static List<T> DeserializePairListFromJsonString<T>(string jsonString)
         ////{
         ////    try
@@ -243,13 +235,13 @@ namespace IpcNetMq.IpcNetMqHelpers
         ////    }
         ////}
 
-        /////// <summary>
-        /////// Method to build a list of name-value pairs directly within the call
-        /////// and return a serialized json string.
-        /////// Example call: string result = BuildNameValuePairs( ("name", "Fred"), ("age", "23"), ("city", "franklin"));
-        /////// </summary>
-        /////// <param name="pairs"></param>
-        /////// <returns></returns>
+        //// <summary>
+        //// Method to build a list of name-value pairs directly within the call
+        //// and return a serialized json string.
+        //// Example call: string result = BuildNameValuePairs( ("name", "Fred"), ("age", "23"), ("city", "franklin"));
+        //// </summary>
+        //// <param name="pairs"></param>
+        //// <returns></returns>
         ////public static string BuildNameValuePairs(params (string name, string value)[] pairs)
         ////{
         ////    var nameValuePairs = new Dictionary<string, string>();

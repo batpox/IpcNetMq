@@ -3,7 +3,7 @@
 <package>
   <metadata>
     <id>IpcNetMq</id>
-    <version>26.10.10.8</version>
+    <version>26.10.10.10</version>
     <authors>Daniel T. Houck</authors>
     <icon>IpcNetMq.png</icon>
     <readme>README.md</readme>

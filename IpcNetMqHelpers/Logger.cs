@@ -17,6 +17,7 @@ namespace IpcNetMqHelpers
         private static readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         private static readonly Task _logTask = Task.Run(() => ProcessLogQueue(_cancellationTokenSource.Token));
 
+        /// <summary>Gets the local timestamp most recently assigned when the logger detected a date change.</summary>
         public static DateTime Timestamp { get; private set; }
         private static DateTime lastTimestamp = DateTime.Now;
 
@@ -26,6 +27,9 @@ namespace IpcNetMqHelpers
             _logQueue.Add($"********** New Day: {Timestamp}");
         }
 
+        /// <summary>Sets the log file path.</summary>
+        /// <remarks>Call before writing messages. This legacy logger starts its processing task during static initialization.</remarks>
+        /// <param name="filePath">The destination path, or null/empty to select IpcNetMqServer.log in the Documents folder.</param>
         public static void Initialize(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
@@ -37,10 +41,8 @@ namespace IpcNetMqHelpers
             _filePath = filePath;
         }
 
-        /// <summary>
-        /// Add to the log. If the day changed, a special date message is writtem.
-        /// </summary>
-        /// <param name="message"></param>
+        /// <summary>Queues a message with a timestamp prefix and adds a date marker when the date changes.</summary>
+        /// <param name="message">The message to append to the log.</param>
         public static void LogIt(string message)
         {
             DateTime dateTime = DateTime.Now;
@@ -67,10 +69,9 @@ namespace IpcNetMqHelpers
             }
         }
 
-        /// <summary>
-        /// Read logs asynchronously
-        /// </summary>
-        /// <returns></returns>
+        /// <summary>Requests completion of queued logging and then reads the configured log file.</summary>
+        /// <remarks>This legacy method waits for the processing task; it is not a non-blocking snapshot of active logging.</remarks>
+        /// <returns>A task containing the log file text.</returns>
         public static async Task<string> ReadLogsAsync()
         {
             await Task.Yield(); // Ensures this method can be awaited
@@ -88,6 +89,7 @@ namespace IpcNetMqHelpers
             }
         }
 
+        /// <summary>Stops the logging task and disposes its queue and cancellation resources.</summary>
         public static void Dispose()
         {
             _logQueue.CompleteAdding();

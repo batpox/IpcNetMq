@@ -5,14 +5,8 @@ using IpcNetMq.IpcNetMqHelpers;
 namespace IpcNetMq
 {
 
-    /// <summary>
-    /// The packet that is transferred between server and client.
-    /// It holds whatever is neccessary for the IPC mechanism.
-    /// Currently has been tested with:
-    /// 1. Python IpcServer
-    /// 
-    /// Note that this is .NET 6, so json serialization is from System.Text.Json
-    /// </summary>
+    /// <summary>Carries request/reply metadata and encoded JSON payloads between IPC peers.</summary>
+    /// <remarks>Uses System.Text.Json wire property attributes. Requests use odd sequence numbers and their replies use the next even number.</remarks>
     public class IpcPacket
     {
         /// <summary>
@@ -92,8 +86,11 @@ namespace IpcNetMq
         [JsonPropertyName("reply_string")]
         public string ReplyString { get; set; }
 
+        /// <summary>Creates a packet with the current wire-schema version and UTC construction timestamp.</summary>
         public IpcPacket() { }
 
+        /// <summary>Checks that the action name is non-empty.</summary>
+        /// <returns>OK when the action is set; otherwise, a validation error message.</returns>
         public string Check()
         {
             if (string.IsNullOrEmpty(Action))
@@ -102,7 +99,9 @@ namespace IpcNetMq
             return "OK";
         }
 
-        /// <summary>Override of ToString</summary>
+        /// <summary>Formats the sequence, client ID, and abbreviated request/reply payloads for diagnostics.</summary>
+        /// <remarks>RequestString and ReplyString must be non-null when calling this method.</remarks>
+        /// <returns>A diagnostic string.</returns>
         public override string ToString()
             => $"Packet #[{SequenceNumber}] ClientID={ClientId} Request({RequestString.Length})={RequestString.Trunc(15)}...  Reply({ReplyString.Length})={ReplyString.Trunc(15)}... ";
 
