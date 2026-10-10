@@ -6,17 +6,32 @@ using System.Threading.Tasks;
 
 namespace IpcNetMq
 {
+
+    /// <summary>Processes single-frame JSON request/reply exchanges in background-loop or caller-owned polling mode.</summary>
     public class IpcServerNetMq : IpcServerBaseNetMq
     {
+
+        /// <summary>Gets or sets the friendly server name.</summary>
         public string ServerName { get; set; }
         private bool _awaitingReply;
         private IpcPacket _request;
+
+        /// <summary>Creates a server for the specified endpoint without binding its socket.</summary>
+        /// <param name="name">The friendly server name.</param>
+        /// <param name="address">The ZeroMQ endpoint to bind, such as tcp://127.0.0.1:5555.</param>
         public IpcServerNetMq(string name, string address) : base(address) { ServerName = name; }
 
+        /// <summary>Runs serial request processing on a dedicated thread and blocks until the server stops.</summary>
+        /// <remarks>Dispose the server to stop this blocking call. Handler failures produce correlated error replies; handlers must return before shutdown can finish.</remarks>
+        /// <param name="handleAction">Handles each request and returns its reply.</param>
         public void RunIpcServerLoop(Func<IpcPacket, IpcPacket> handleAction)
             => RunIpcServerLoopOnBackgroundThreadAsync(handleAction).GetAwaiter().GetResult();
 
-        /// <summary>Run until cancellation or disposal. All socket operations stay on its dedicated thread.</summary>
+        /// <summary>Starts serial request processing on a dedicated socket-owning thread.</summary>
+        /// <remarks>Cancellation or disposal stops idle polling. An active handler must return before shutdown can finish. Polling and loop modes cannot be mixed.</remarks>
+        /// <param name="handleAction">Handles each request and returns its reply.</param>
+        /// <param name="ct">Requests shutdown of the running loop.</param>
+        /// <returns>A task representing the server loop lifetime.</returns>
         public Task RunIpcServerLoopOnBackgroundThreadAsync(Func<IpcPacket, IpcPacket> handleAction,
             CancellationToken ct = default)
         {
@@ -58,13 +73,23 @@ namespace IpcNetMq
             }
         }
 
-        /// <summary>Poll on the owning thread. Invalid messages receive an error and return false.</summary>
+        /// <summary>Polls the next request without blocking on the server socket.</summary>
+        /// <remarks>Call on the polling socket owner thread. Invalid or multipart messages receive an error reply. Each successful call requires exactly one SendReply call.</remarks>
+        /// <param name="request">The received packet, or null when no valid request is available.</param>
+        /// <returns>true when a valid request is received; otherwise, false.</returns>
         public bool TryGetRequest(out IpcPacket request)
         {
             EnsurePollingReady();
             request = ReceiveRequest(TimeSpan.Zero);
             return request != null;
         }
+
+        /// <summary>Sends a reply for the most recent polling request, copying its client ID and incrementing its sequence.</summary>
+        /// <remarks>Call on the polling socket owner thread. Sending waits at most two seconds; a failed send closes the socket.</remarks>
+        /// <param name="reply">The reply packet to send.</param>
+        /// <exception cref="ArgumentNullException">The reply is null.</exception>
+        /// <exception cref="InvalidOperationException">No request is awaiting a reply, or the socket belongs to another thread.</exception>
+        /// <exception cref="TimeoutException">The reply cannot be sent within two seconds.</exception>
         public void SendReply(IpcPacket reply)
         {
             ThrowIfDisposed();
@@ -85,6 +110,10 @@ namespace IpcNetMq
             catch { CloseSocket(out _); throw; }
             finally { _awaitingReply = false; _request = null; }
         }
+
+        /// <summary>Closes the owned socket and clears any pending request/reply state.</summary>
+        /// <param name="reason">An empty string on success, or the close failure description.</param>
+        /// <returns>true if the socket closes; otherwise, false.</returns>
         protected override bool CloseSocket(out string reason)
         {
             var closed = base.CloseSocket(out reason);

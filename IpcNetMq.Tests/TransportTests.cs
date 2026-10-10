@@ -8,6 +8,24 @@ namespace IpcNetMq.Tests;
 
 public class TransportTests
 {
+    // Inproc transport requires binding before connecting; TCP startup has different semantics.
+    private sealed class BoundServer : IpcServerNetMq
+    {
+        private readonly TaskCompletionSource<bool> _bound = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public BoundServer(string name, string address) : base(name, address) { }
+        protected override bool OpenSocket(out string reason)
+        {
+            var opened = base.OpenSocket(out reason);
+            if (opened) _bound.TrySetResult(true);
+            return opened;
+        }
+        public void WaitUntilBound()
+        {
+            if (!_bound.Task.Wait(TimeSpan.FromSeconds(5)))
+                throw new TimeoutException("The test server did not bind its inproc endpoint.");
+        }
+    }
+
     private static string Address() => "inproc://ipc-test-" + Guid.NewGuid().ToString("N");
     private static IpcPacket Request() => new() { Action = "echo", ClientId = "test-client" };
     private static void Until(Func<bool> test)
@@ -26,11 +44,12 @@ public class TransportTests
     public async Task DisposingOneServerDoesNotTerminateOtherConnections()
     {
         var address = Address();
-        using var active = new IpcServerNetMq("active", address);
+        using var active = new BoundServer("active", address);
         using var client = new IpcClientNetMq("client", address);
         var lifetime = active.RunIpcServerLoopOnBackgroundThreadAsync(_ => new IpcPacket());
+        active.WaitUntilBound();
         Assert.Equal(2, (await client.CallIpcMethodAsync(Request()).WaitAsync(TimeSpan.FromSeconds(5))).SequenceNumber);
-        using (var other = new IpcServerNetMq("other", Address())) other.EnsurePollingReady();
+        using (var other = new BoundServer("other", Address())) other.EnsurePollingReady();
         var reply = await client.CallIpcMethodAsync(Request()).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(4, reply.SequenceNumber);
         Assert.Equal("test-client", reply.ClientId);
@@ -44,13 +63,14 @@ public class TransportTests
         var address = Address();
         using var received = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        using var server = new IpcServerNetMq("server", address);
+        using var server = new BoundServer("server", address);
         var calls = 0;
         var lifetime = server.RunIpcServerLoopOnBackgroundThreadAsync(_ =>
         {
             if (Interlocked.Increment(ref calls) == 1) { received.Set(); release.Wait(TimeSpan.FromSeconds(5)); }
             return new IpcPacket();
         });
+        server.WaitUntilBound();
         using var client = new IpcClientNetMq("client", address);
         using var cancel = new CancellationTokenSource();
         var first = client.CallIpcMethodAsync(Request(), receiveTimeout: TimeSpan.FromSeconds(20), ct: cancel.Token);
@@ -70,11 +90,12 @@ public class TransportTests
         var address = Address();
         using var received = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        using var server = new IpcServerNetMq("server", address);
+        using var server = new BoundServer("server", address);
         var lifetime = server.RunIpcServerLoopOnBackgroundThreadAsync(_ =>
         {
             received.Set(); release.Wait(TimeSpan.FromSeconds(5)); return new IpcPacket();
         });
+        server.WaitUntilBound();
         using var client = new IpcClientNetMq("client", address);
         var first = client.CallIpcMethodAsync(Request(), receiveTimeout: TimeSpan.FromSeconds(30));
         Assert.True(received.Wait(TimeSpan.FromSeconds(5)));
@@ -140,10 +161,11 @@ public class TransportTests
     public async Task HandlerErrorsReturnCorrelatedErrorAndServerKeepsServing()
     {
         var address = Address();
-        using var server = new IpcServerNetMq("server", address);
+        using var server = new BoundServer("server", address);
         var count = 0;
         var lifetime = server.RunIpcServerLoopOnBackgroundThreadAsync(_ =>
             Interlocked.Increment(ref count) == 1 ? throw new InvalidOperationException("test failure") : new IpcPacket());
+        server.WaitUntilBound();
         using var client = new IpcClientNetMq("client", address);
         var error = await client.CallIpcMethodAsync(Request()).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Contains("test failure", error.Status);
@@ -156,8 +178,9 @@ public class TransportTests
     public async Task ConcurrentCallsAreSerializedAndCorrelated()
     {
         var address = Address();
-        using var server = new IpcServerNetMq("server", address);
+        using var server = new BoundServer("server", address);
         var lifetime = server.RunIpcServerLoopOnBackgroundThreadAsync(request => new IpcPacket { ReplyString = request.RequestString });
+        server.WaitUntilBound();
         using var client = new IpcClientNetMq("client", address);
         var replies = await Task.WhenAll(Enumerable.Range(0, 40).Select(async i =>
         {

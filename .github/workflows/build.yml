@@ -19,6 +19,8 @@ jobs:
             10.0.x
       - name: Build solution and all library targets
         run: dotnet build IpcNetMq.sln -c Release -m:1
+      - name: Validate API XML documentation
+        run: dotnet build IpcNetMq.csproj -c Release --no-restore -m:1 -t:Rebuild -warnaserror:CS1591,CS1570,CS1572,CS1573,CS1584
       - name: Test .NET 8 and .NET 10
         run: dotnet test IpcNetMq.Tests/IpcNetMq.Tests.csproj -c Release -m:1 --logger "trx"
       - name: Pack

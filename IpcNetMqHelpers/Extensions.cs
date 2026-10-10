@@ -8,24 +8,46 @@ using System.Threading.Tasks;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
+
+    /// <summary>Provides numeric parsing and culture-invariant formatting extensions.</summary>
     public static class Extensions
     {
+
+        /// <summary>Parses a floating-point value using the current culture.</summary>
+        /// <param name="value">The numeric string to parse.</param>
+        /// <returns>The parsed numeric value.</returns>
         public static double ToDouble(this string value)
         {
             return double.Parse(value);
         }
+
+        /// <summary>Parses a floating-point value using invariant culture.</summary>
+        /// <param name="value">The numeric string to parse.</param>
+        /// <returns>The parsed numeric value.</returns>
         public static double ToDoubleInvariant(this string value)
         {
             return double.Parse(value, CultureInfo.InvariantCulture);
         }
+
+        /// <summary>Parses a 32-bit integer using the current culture.</summary>
+        /// <param name="value">The numeric string to parse.</param>
+        /// <returns>The parsed numeric value.</returns>
         public static Int32 ToInt32(this string value)
         {
             return Int32.Parse(value);
         }
+
+        /// <summary>Parses a 32-bit integer using invariant culture.</summary>
+        /// <param name="value">The numeric string to parse.</param>
+        /// <returns>The parsed numeric value.</returns>
         public static Int32 ToInt32Invariant(this string value)
         {
             return Int32.Parse(value, CultureInfo.InvariantCulture);
         }
+
+        /// <summary>Converts an object to its invariant-culture string representation.</summary>
+        /// <param name="obj">The object to convert, or null.</param>
+        /// <returns>The converted string, or an empty string for null.</returns>
         public static string ToStringInvariant(this object obj)
         {
             if ( obj == null) 
@@ -43,13 +65,11 @@ namespace IpcNetMq.IpcNetMqHelpers
     /// </summary>
     public static class StringExtensions
     {
-        /// <summary>
-        /// Returns the string truncated to the specified maximum length.
-        /// If the string was shorter than maxLength, the original string is returned.  
-        /// </summary>
-        /// <param name="s"></param>
-        /// <param name="maxLength"></param>
-        /// <returns></returns>
+
+        /// <summary>Limits a string to the requested length.</summary>
+        /// <param name="s">The string to truncate, or null.</param>
+        /// <param name="maxLength">The maximum character count; a negative value leaves the string unchanged.</param>
+        /// <returns>The truncated string, the original string when already short enough, or an empty string for null.</returns>
         public static string Trunc(this string s, int maxLength)
         {
             if (string.IsNullOrEmpty(s) || maxLength < 0)

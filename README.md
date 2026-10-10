@@ -580,6 +580,10 @@ See [`LICENSE.txt`](LICENSE.txt) for the repository's license terms. Package met
 
 Use `yy.mm.dd.HH` for NuGet, assembly, and file versions, with the maintainer's local hour. For example, 3 pm on October 10, 2026 is `26.10.10.15`. Numeric version components may omit leading zeros.
 
+### 26.10.10.10
+
+Adds IntelliSense summaries for public types, members, constructors, and methods, including socket ownership, cancellation, timeout, and shutdown behavior. Corrects malformed XML documentation.
+
 ### 26.10.10.8
 
 Fixes per-instance disposal affecting other connections, client cancellation and shutdown, background server cancellation, malformed/multipart request recovery, and polling reply correlation. Wire schema `V260107` remains unchanged. Legacy manual packet APIs stay available, but enforce socket thread ownership. Their obsolete async wrappers execute synchronously on the caller's thread; use `CallIpcMethodAsync` for asynchronous dispatch. Close a legacy connection before switching to dispatcher mode; use `Dispose` to stop a dispatcher client.
