@@ -26,7 +26,7 @@ namespace IpcNetMq.Tests
             var jsonString = JsonHelpers.SerializeToJsonString(packet);
 
             // Assert
-            Assert.Contains("\"sequence_number\":1", jsonString);
+            Assert.Contains("\"sequence_number\":0", jsonString);
             Assert.Contains("\"action\":\"TestAction\"", jsonString);
         }
 
@@ -34,7 +34,7 @@ namespace IpcNetMq.Tests
         public void DeserializeFromJsonString_ValidJson_ReturnsValidPacket()
         {
             // Arrange
-            string json = "{\"version\":\"V241007\", \"client_id\":\"abc123\", \"sequence_number\":1, \"utc_time\":\"2024-01-01T00:00:00Z\", \"action\":\"TestAction\", \"status\":\"\", \"options_string\":\"\", \"user_string\":\"\", \"request_string\":\"RequestData\", \"reply_string\":\"ReplyData\"}";
+            string json = "{\"version\":\"V241007\", \"client_id\":\"abc123\", \"sequence_number\":1, \"world_time\":\"2024-01-01T00:00:00Z\", \"action\":\"TestAction\", \"status\":\"\", \"options_string\":\"\", \"user_string\":\"\", \"request_string\":\"RequestData\", \"reply_string\":\"ReplyData\"}";
             //string json = "{\"SequenceNumber\":1,\"Action\":\"TestAction\",\"RequestString\":\"RequestData\",\"ReplyString\":\"ReplyData\"}";
 
             // Act

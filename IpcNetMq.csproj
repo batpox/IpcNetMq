@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Version>26.8.16.0</Version>
+    <Version>26.10.10.8</Version>
     <Authors>Daniel T. Houck</Authors>
     <Company>batpox/metalBlender</Company>
     <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
@@ -16,13 +16,13 @@
     <!-- <PackageReadmeFile>README.md</PackageReadmeFile> -->
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageTags>NetMQ;ZeroMQ;IPC;InterProcessCommunication;</PackageTags>
-    <PackageReleaseNotes>Fixed SequenceNumber generation. Fixed Server timeout issues</PackageReleaseNotes>
+    <PackageReleaseNotes>Fixed socket ownership, cancellation, disposal isolation, and malformed request recovery.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression> <!-- or whatever you use -->
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <AssemblyVersion>26.8.16.0</AssemblyVersion>
-    <FileVersion>26.8.16.0</FileVersion>
+    <AssemblyVersion>26.10.10.8</AssemblyVersion>
+    <FileVersion>26.10.10.8</FileVersion>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <SignAssembly>False</SignAssembly>

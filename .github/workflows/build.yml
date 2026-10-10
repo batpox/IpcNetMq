@@ -1,0 +1,29 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build solution and all library targets
+        run: dotnet build IpcNetMq.sln -c Release -m:1
+      - name: Test .NET 8 and .NET 10
+        run: dotnet test IpcNetMq.Tests/IpcNetMq.Tests.csproj -c Release -m:1 --logger "trx"
+      - name: Pack
+        run: dotnet pack IpcNetMq.csproj -c Release --no-build -m:1 -o artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: artifacts/*
