@@ -591,3 +591,44 @@ dotnet pack .\IpcNetMq.csproj -c Release -o D:\nuget
 ```
 
 The historical standalone `.nuspec` is not used by SDK packing. The project defines the current target frameworks and dependencies.
+
+## Publish to NuGet.org with Trusted Publishing
+
+Publishing is manually triggered; pushes and pull requests only run build/test CI.
+No stored NuGet API key is required.
+
+One-time setup on NuGet.org, under your username > **Trusted Publishing**:
+
+| Setting | Value |
+| --- | --- |
+| Repository owner | `batpox` |
+| Repository | `IpcNetMq` |
+| Workflow file | `publish.yml` (file name only) |
+| Environment | Leave empty |
+| Package pattern/scope | `IpcNetMq`; allow publishing new versions |
+
+Choose the NuGet account or organization that owns the package. The profile username
+used below must be the NuGet username associated with the policy, not an email address.
+For private repositories, NuGet may initially activate the policy for seven days;
+a successful publish makes that activation permanent.
+
+To publish:
+
+1. Commit the desired `yy.mm.dd.HH` version consistently in the project, assembly
+   metadata, and legacy nuspec, and merge it into `main`.
+2. Open **Actions > Publish NuGet > Run workflow** in this GitHub repository.
+3. Select **main**, enter your NuGet.org profile username, leave **dry_run** unchecked,
+   and click **Run workflow**.
+4. The workflow builds the solution (net48/net8/net10 library targets), runs .NET 8/10
+   tests, packs the project, and authenticates via `NuGet/login@v1` immediately before
+   publishing the package and its paired symbol package.
+
+Check **dry_run** to build and test without publishing. Download the resulting packages
+from the run's `nuget-release` artifact. The publishing job receives OIDC permission;
+the build job does not.
+
+The workflow publishes the version already committed in `IpcNetMq.csproj`; it does not
+change versions automatically. NuGet.org rejects a package version that already exists.
+A failed NuGet login usually indicates a mismatched username or trusted policy.
+
+See [NuGet Trusted Publishing documentation](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).

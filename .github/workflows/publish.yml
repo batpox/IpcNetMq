@@ -1,0 +1,78 @@
+name: Publish NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      nuget_user:
+        description: "NuGet.org profile username (not email)"
+        required: true
+        type: string
+      dry_run:
+        description: "Build, test, and download packages without publishing"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main
+        env:
+          SELECTED_REF: ${{ github.ref }}
+        run: |
+          if [ "$SELECTED_REF" != "refs/heads/main" ]; then
+            echo "::error::Select the main branch when running Publish NuGet."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build solution and all library targets
+        run: dotnet build IpcNetMq.sln -c Release -m:1
+      - name: Test .NET 8 and .NET 10
+        run: dotnet test IpcNetMq.Tests/IpcNetMq.Tests.csproj -c Release --no-build -m:1
+      - name: Pack
+        run: dotnet pack IpcNetMq.csproj -c Release --no-build -m:1 -o artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-release
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-release
+          path: artifacts
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: NuGet login with Trusted Publishing
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ inputs.nuget_user }}
+      - name: Publish package and symbols
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push artifacts/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
