@@ -1,4 +1,4 @@
-﻿using IpcNetMq.IpcNetMqHelpers;
+using IpcNetMq.IpcNetMqHelpers;
 using NetMQ;
 using System;
 using System.Threading;
@@ -9,126 +9,88 @@ namespace IpcNetMq
     public class IpcServerNetMq : IpcServerBaseNetMq
     {
         public string ServerName { get; set; }
+        private bool _awaitingReply;
+        private IpcPacket _request;
+        public IpcServerNetMq(string name, string address) : base(address) { ServerName = name; }
 
-        public IpcServerNetMq(string name, string address)
-            : base(address)
-        {
-            ServerName = name;
-        }
-
-        /// <summary>
-        /// Run the Server loop async, using the provided 'action handler' method,
-        /// that will process each incoming request packet and return a reply packet.
-        /// </summary>
-        /// <param name="handleAction"></param>
         public void RunIpcServerLoop(Func<IpcPacket, IpcPacket> handleAction)
-        {
-            RunServerLoopAsync(
-                () => Task.FromResult(GetRequestPacket()),
-                packet =>
-                {
-                    var reply = handleAction(packet);
+            => RunIpcServerLoopOnBackgroundThreadAsync(handleAction).GetAwaiter().GetResult();
 
-                    if ( reply == null)
-                        throw new ApplicationException("Server action handler returned null reply packet.");
-
-                    reply.SetSequenceNumber(checked(packet.SequenceNumber + 1));
-                    reply.ClientId = packet.ClientId;
-
-                    PutReplyPacket(reply);
-                    return Task.CompletedTask;
-                },
-                "Sync"
-            ).GetAwaiter().GetResult();
-        }
-
-        /// <summary>
-        /// Todo: Test.
-        /// </summary>
-        /// <param name="handleAction"></param>
-        /// <param name="ct"></param>
-        /// <returns></returns>
-        public Task RunIpcServerLoopOnBackgroundThreadAsync(
-            Func<IpcPacket, IpcPacket> handleAction,
+        /// <summary>Run until cancellation or disposal. All socket operations stay on its dedicated thread.</summary>
+        public Task RunIpcServerLoopOnBackgroundThreadAsync(Func<IpcPacket, IpcPacket> handleAction,
             CancellationToken ct = default)
         {
-            return Task.Run(() => RunIpcServerLoop(handleAction), ct);
+            if (handleAction == null) throw new ArgumentNullException(nameof(handleAction));
+            return RunServerLoopAsync(
+                () => Task.FromResult(ReceiveRequest(TimeSpan.FromMilliseconds(25))),
+                request =>
+                {
+                    IpcPacket reply;
+                    try { reply = handleAction(request) ?? throw new InvalidOperationException("The action handler returned null."); }
+                    catch (Exception ex) { reply = new IpcPacket { Status = "error: " + ex.Message, Action = request.Action }; }
+                    SendReplyCore(reply);
+                    return Task.CompletedTask;
+                }, "Background", ct);
         }
 
-        private IpcPacket GetRequestPacket()
+        private IpcPacket ReceiveRequest(TimeSpan timeout)
         {
-            string json = ServerSocket.ReceiveFrameString();
-            return JsonHelpers.DeserializeFromJsonString(json);
-        }
-
-        private void PutReplyPacket(IpcPacket packet)
-        {
-            string json = JsonHelpers.SerializeToJsonString(packet);
-            ServerSocket.SendFrame(json);               // keep on the server loop thread (synchronous)
-        }
-
-
-        // ============================================================
-        // NEW: POLLING / NON-BLOCKING SERVER API (for Update loops)
-        // ============================================================
-
-        private bool _awaitingReply;
-        private int _requestSequenceNumber;
-
-        /// <summary>
-        /// Non-blocking poll for the next request.
-        /// Returns true only when a full request frame was received.
-        /// Safe for tight loops (e.g., Stride Update).
-        /// </summary>
-        public bool TryGetRequest(out IpcPacket request)
-        {
-            request = null;
-
-            EnsurePollingReady();
-
-            if ( _awaitingReply)
-                throw new InvalidOperationException("Must send a reply before receiving the next request.");
-
-            // TimeSpan.Zero => do not block
-            if (!ServerSocket.TryReceiveFrameString(TimeSpan.Zero, out var json))
-                return false;
-
+            if (_awaitingReply) throw new InvalidOperationException("Must send a reply before receiving the next request.");
+            // Consume the entire message so unsupported multipart input cannot wedge REP.
+            System.Collections.Generic.List<string> frames = null;
+            if (!ServerSocket.TryReceiveMultipartStrings(timeout, ref frames)) return null;
             try
             {
-                request = JsonHelpers.DeserializeFromJsonString(json);
-                if ( request == null)
-                    return false;
-
-                _requestSequenceNumber = request.SequenceNumber;
+                if (frames.Count != 1) throw new FormatException("Only single-frame requests are supported.");
+                _request = JsonHelpers.DeserializeFromJsonString(frames[0]);
+                if (_request == null) throw new FormatException("A request packet is required.");
+                if (_request.SequenceNumber == int.MaxValue) throw new FormatException("Request sequence cannot be incremented.");
                 _awaitingReply = true;
-                return true;
+                return _request;
             }
-            catch
+            catch (Exception ex)
             {
-                // optionally log json length or first N chars
-                return false;
+                // Every received REP message needs a reply, including malformed input.
+                _request = new IpcPacket();
+                _awaitingReply = true;
+                SendReplyCore(new IpcPacket { Status = "error: invalid request: " + ex.Message });
+                return null;
             }
         }
 
-        /// <summary>
-        /// Send a reply for the most recently received request.
-        /// Must be called exactly once for each successful TryGetRequest().
-        /// </summary>
+        /// <summary>Poll on the owning thread. Invalid messages receive an error and return false.</summary>
+        public bool TryGetRequest(out IpcPacket request)
+        {
+            EnsurePollingReady();
+            request = ReceiveRequest(TimeSpan.Zero);
+            return request != null;
+        }
         public void SendReply(IpcPacket reply)
         {
-            if (reply == null) 
-                throw new ArgumentNullException(nameof(reply));
-
-            if (!_awaitingReply)
-                throw new InvalidOperationException("SendReply called without a preceding TryGetRequest().");
-
-            reply.SetSequenceNumber(checked(_requestSequenceNumber + 1));
-
-            string json = JsonHelpers.SerializeToJsonString(reply);
-            ServerSocket.SendFrame(json);
-
+            ThrowIfDisposed();
+            EnsureSocketOwner();
+            SendReplyCore(reply);
+        }
+        private void SendReplyCore(IpcPacket reply)
+        {
+            if (reply == null) throw new ArgumentNullException(nameof(reply));
+            if (!_awaitingReply) throw new InvalidOperationException("SendReply requires a preceding request.");
+            reply.SetSequenceNumber(checked(_request.SequenceNumber + 1));
+            reply.ClientId = _request.ClientId;
+            try
+            {
+                if (!ServerSocket.TrySendFrame(TimeSpan.FromSeconds(2), JsonHelpers.SerializeToJsonString(reply)))
+                    throw new TimeoutException("Reply send timed out.");
+            }
+            catch { CloseSocket(out _); throw; }
+            finally { _awaitingReply = false; _request = null; }
+        }
+        protected override bool CloseSocket(out string reason)
+        {
+            var closed = base.CloseSocket(out reason);
             _awaitingReply = false;
+            _request = null;
+            return closed;
         }
     }
 }
-

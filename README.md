@@ -28,7 +28,7 @@ The library is intended for applications that need a clean process boundary betw
 ### .NET
 
 - .NET 10 SDK for the supplied C# examples.
-- .NET 8 SDK for the test project.
+- .NET 8 and .NET 10 SDKs/runtimes for the multi-target test project.
 - Visual Studio 2026 or the `dotnet` command-line tools.
 - NetMQ 4.0.4.3.
 - System.Text.Json 10.0.11.
@@ -383,23 +383,27 @@ Every Python `REP` request must receive exactly one reply, including invalid act
 ### Client behavior
 
 - Default send timeout: 2 seconds.
-- Default receive timeout: 5 seconds.
-- A failed send triggers one reconnect and one retry.
+- Default receive timeout: 5 seconds. Timeouts must be finite and non-negative. Positive waits are rounded up to whole milliseconds to avoid NetMQ truncating a sub-millisecond wait into a non-expiring path.
+- Failed exchanges close the socket; the next call opens a fresh socket. Requests are never automatically replayed.
 - A request that was sent but did not receive a valid reply causes the REQ socket to be recreated before subsequent work.
 - A sequence mismatch completes the call with an exception.
-- Cancellation completes the associated task as canceled.
-- Calls are queued and processed serially.
+- Cancellation completes the task as canceled and interrupts socket waits in slices of at most 25 ms. The worker abandons the incomplete exchange before processing another call.
+- Calls are queued and processed serially. The bounded queue rejects excess work immediately rather than blocking the caller.
+- Disposal stops the worker, closes its socket on that worker, and completes active/queued calls with `ObjectDisposedException`. Further calls are rejected.
 
 Timeouts may occur normally while debugging a server. The caller should catch `TimeoutException`, apply an appropriate backoff, and retry at the application level when the operation is safe to repeat.
 
 ### Server behavior
 
 - Requests are processed serially.
-- The blocking loop closes and rebuilds its socket after processing or socket failures.
+- The loop uses a dedicated socket-owning thread and closes/rebuilds its socket after transport failures. Handler exceptions or null replies produce correlated error packets.
 - Socket-open failures use a capped linear retry delay of up to five seconds.
 - The loop exits after ten consecutive failed attempts to open the socket.
 - Polling mode is non-blocking but requires exactly one reply for every request received.
-- Disposal closes/unbinds the socket and invokes NetMQ cleanup on a best-effort basis.
+- Malformed and unsupported multipart messages receive an error reply so the REP socket remains usable. Polling replies echo both the request sequence plus one and its client ID.
+- Background-loop cancellation interrupts idle receive polling within 25 ms. Disposal requests loop shutdown and waits for the owner thread to close its socket. A running user handler must return before shutdown can finish.
+- Instance disposal does **not** invoke `NetMQConfig.Cleanup()`. Only the application should call global cleanup, after all its NetMQ sockets have stopped.
+- Polling operations and disposal must use the same thread. Polling and loop modes cannot be mixed.
 
 ### Delivery semantics
 
@@ -457,7 +461,7 @@ IpcNetMq/
 │   ├── TestClientCSharp/           .NET 10 client and timing example
 │   ├── TestServerCSharp/           .NET 10 blocking/polling server example
 │   └── ServerPython/               Python/pyzmq interoperable server
-├── IpcNetMq.Tests/                 .NET 8 xUnit serialization tests
+├── IpcNetMq.Tests/                 .NET 8/10 xUnit serialization and transport tests
 ├── Documentation/                  Additional project documentation
 ├── Resources/                      Package icon assets
 └── LICENSE.txt                     Repository license text
@@ -485,7 +489,7 @@ dotnet build IpcNetMq.csproj -c Release -f net10.0
 dotnet test .\IpcNetMq.Tests\IpcNetMq.Tests.csproj -c Release
 ```
 
-The current automated tests focus on packet and name/value JSON serialization. End-to-end transport and concurrency tests should be added as the protocol evolves.
+Automated tests cover serialization, concurrent request correlation, cancellation and socket reset, queued-call shutdown, disposal isolation, idle server cancellation, polling identity, malformed/multipart recovery, handler errors, and socket thread/mode ownership. CI builds all three library targets and runs tests on .NET 8 and .NET 10 on Windows and Linux.
 
 ### Package
 
@@ -570,3 +574,20 @@ Keep wire-format changes backward compatible when possible. If compatibility can
 ## License
 
 See [`LICENSE.txt`](LICENSE.txt) for the repository's license terms. Package metadata and the repository license file should declare the same license before release.
+
+
+## Release versions
+
+Use `yy.mm.dd.HH` for NuGet, assembly, and file versions, with the maintainer's local hour. For example, 3 pm on October 10, 2026 is `26.10.10.15`. Numeric version components may omit leading zeros.
+
+### 26.10.10.8
+
+Fixes per-instance disposal affecting other connections, client cancellation and shutdown, background server cancellation, malformed/multipart request recovery, and polling reply correlation. Wire schema `V260107` remains unchanged. Legacy manual packet APIs stay available, but enforce socket thread ownership. Their obsolete async wrappers execute synchronously on the caller's thread; use `CallIpcMethodAsync` for asynchronous dispatch. Close a legacy connection before switching to dispatcher mode; use `Dispose` to stop a dispatcher client.
+
+Build packages from the SDK project:
+
+```powershell
+dotnet pack .\IpcNetMq.csproj -c Release -o D:\nuget
+```
+
+The historical standalone `.nuspec` is not used by SDK packing. The project defines the current target frameworks and dependencies.

@@ -1,4 +1,4 @@
-﻿using NetMQ;
+using NetMQ;
 using NetMQ.Sockets;
 using System;
 using System.Threading;
@@ -6,239 +6,159 @@ using System.Threading.Tasks;
 
 namespace IpcNetMq.IpcNetMqHelpers
 {
-    /// <summary>
-    /// The base class. Provides default Logit, OpenSocket, CloseSocket, and RunServerLoopAsync methods.
-    /// </summary>
+    /// <summary>Owns a REP socket without terminating other NetMQ connections.</summary>
     public abstract class IpcServerBaseNetMq : IDisposable
     {
         private bool _disposed;
-
+        private readonly object _gate = new object();
+        private readonly CancellationTokenSource _stop = new CancellationTokenSource();
+        private Thread _loopThread;
+        private int _ownerThread;
+        private enum ServerMode { None, Polling, Loop }
+        private ServerMode _mode;
         protected readonly string ServerAddress;
         protected ResponseSocket ServerSocket;
         protected bool IsBound;
 
-        /// <summary>
-        /// Construct with a required address. e.g. "tcp://127.0.0.1:5555" loopback for same-machine.
-        /// </summary>
-        /// <param name="serverAddress"></param>
-        /// <exception cref="ArgumentNullException"></exception>
         protected IpcServerBaseNetMq(string serverAddress)
         {
-            if ( string.IsNullOrWhiteSpace(serverAddress))  
-                throw new ArgumentNullException("Server Address cannot be null or empty");
-
+            if (string.IsNullOrWhiteSpace(serverAddress)) throw new ArgumentNullException(nameof(serverAddress));
             ServerAddress = serverAddress;
         }
-
-        /// <summary>
-        /// A log to the console. Override to implement custom logging.
-        /// </summary>
-        /// <param name="msg"></param>
-        protected virtual void Logit(string msg)
+        protected virtual void Logit(string msg) => Console.WriteLine(msg);
+        protected void ThrowIfDisposed()
         {
-            Console.WriteLine(msg);
+            if (_disposed) throw new ObjectDisposedException(GetType().Name);
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="reason"></param>
-        /// <returns></returns>
+        protected void EnsureSocketOwner()
+        {
+            if (ServerSocket != null && _ownerThread != Environment.CurrentManagedThreadId)
+                throw new InvalidOperationException("Polling socket operations and disposal must run on its owning thread.");
+        }
         protected virtual bool OpenSocket(out string reason)
         {
-            reason = null;
-
+            EnsureSocketOwner();
+            CloseSocket(out _);
+            reason = "";
             try
             {
-                if (ServerSocket != null)
-                {
-                    CloseSocket(out _);
-                }
-
+                _ownerThread = Environment.CurrentManagedThreadId;
                 ServerSocket = new ResponseSocket();
+                ServerSocket.Options.Linger = TimeSpan.Zero;
                 ServerSocket.Bind(ServerAddress);
                 IsBound = true;
-
                 return true;
             }
             catch (Exception ex)
             {
-                reason = $"OpenSocket failed: Err={ex.Message}";
+                CloseSocket(out _);
+                reason = ex.Message;
                 return false;
             }
         }
-
-        /// <summary>
-        /// Close the socket if open. Usually done as process exits.
-        /// </summary>
-        /// <param name="reason"></param>
-        /// <returns></returns>
         protected virtual bool CloseSocket(out string reason)
         {
+            EnsureSocketOwner();
             reason = "";
-
-            try
-            {
-                if (IsBound && (ServerSocket != null))
-                {
-                    try { ServerSocket.Unbind(ServerAddress); } catch { /* best-effort */ }
-                    try { ServerSocket.Dispose(); } catch { /* best-effort */ }
-                    ServerSocket = null;
-                    IsBound = false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                reason = $"CloseSocket failed. Err={ex.Message}";
-                return false;
-            }
+            var socket = ServerSocket;
+            ServerSocket = null;
+            IsBound = false;
+            try { socket?.Dispose(); return true; }
+            catch (Exception ex) { reason = ex.Message; return false; }
         }
 
-        /// <summary>Backward compatible overload </summary>
-        protected Task RunServerLoopAsync(
-            Func<Task<IpcPacket>> requestFunc,
-            Func<IpcPacket, Task> replyFunc,
-            string label ) =>
-             RunServerLoopAsync(requestFunc, replyFunc, label, CancellationToken.None);
-        
-        /// <summary>
-        /// Runs the main asynchronous server loop, receiving and replying to IPC packets until cancellation is
-        /// requested or the maximum number of retries (of opening socket) is reached.
-        /// </summary>
-        /// <remarks>The server loop attempts to bind and listen for incoming packets, automatically
-        /// retrying on failure up to a fixed maximum number of attempts. The loop processes packets serially on a
-        /// single thread. If an exception occurs during packet processing or socket operations, the server will log the
-        /// error, close the socket, and attempt to restart after a short delay. The operation can be cancelled at any
-        /// time via the provided cancellation token.</remarks>
-        /// <param name="requestFunc">A delegate that asynchronously receives an incoming IPC packet. Called repeatedly to obtain packets to
-        /// process. Must not be null.</param>
-        /// <param name="replyFunc">A delegate that asynchronously processes and responds to a received IPC packet. Invoked for each non-null
-        /// packet received. Must not be null.</param>
-        /// <param name="label">A label used for logging and diagnostic messages to identify the server instance. Cannot be null.</param>
-        /// <param name="ct">A cancellation token that can be used to request termination of the server loop.</param>
-        /// <returns>A task that represents the lifetime of the server loop operation. The task completes when the loop exits due
-        /// to cancellation or after the maximum number of retries.</returns>
-        protected Task RunServerLoopAsync(
-            Func<Task<IpcPacket>> requestFunc,
-            Func<IpcPacket, Task> replyFunc,
-            string label,
-            CancellationToken ct)
+        protected Task RunServerLoopAsync(Func<Task<IpcPacket>> requestFunc,
+            Func<IpcPacket, Task> replyFunc, string label)
+            => RunServerLoopAsync(requestFunc, replyFunc, label, CancellationToken.None);
+
+        /// <summary>Run on one dedicated thread. Delegates must keep socket operations on that thread.</summary>
+        protected Task RunServerLoopAsync(Func<Task<IpcPacket>> requestFunc,
+            Func<IpcPacket, Task> replyFunc, string label, CancellationToken ct)
         {
-            return Task.Run(async () =>
+            if (requestFunc == null) throw new ArgumentNullException(nameof(requestFunc));
+            if (replyFunc == null) throw new ArgumentNullException(nameof(replyFunc));
+            lock (_gate)
             {
-                string reason = "";
-                int retries = 0;
-                const int maxRetries = 10;
-
-                while (retries < maxRetries && !ct.IsCancellationRequested)
+                ThrowIfDisposed();
+                if (_mode != ServerMode.None) throw new InvalidOperationException("Polling and loop modes cannot be combined, and only one loop may run.");
+                _mode = ServerMode.Loop;
+                var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _loopThread = new Thread(() =>
                 {
-                    try
+                    using (var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _stop.Token))
                     {
-                        retries++;
-
-                        if (OpenSocket(out reason))
+                        var token = cancellation.Token;
+                        try
                         {
-                            retries = 0;
-                            Logit($"[{label}] Bound to {ServerAddress}. Listening...");
-
-                            bool keepRunning = true;
-
-                            while (keepRunning && !ct.IsCancellationRequested)
+                            int failures = 0;
+                            while (!token.IsCancellationRequested && failures < 10)
                             {
                                 try
                                 {
-                                    // Single-threaded loop, so all socket I/O stay on this thread
-                                    var packet = await requestFunc().ConfigureAwait(false);
-                                    if (packet != null)
+                                    if (!OpenSocket(out var reason)) throw new InvalidOperationException(reason);
+                                    failures = 0;
+                                    while (!token.IsCancellationRequested)
                                     {
-                                        await replyFunc(packet).ConfigureAwait(false);
+                                        var packet = requestFunc().GetAwaiter().GetResult();
+                                        if (packet != null) replyFunc(packet).GetAwaiter().GetResult();
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    Logit($"[{label}] Read error={ex.Message}");
-                                    keepRunning = false;
-                                    CloseSocket(out reason);
+                                    failures++;
+                                    Logit($"[{label}] Server error: {ex.Message}");
                                 }
-                            } // while keeprunning
+                                finally { CloseSocket(out _); }
+                                if (!token.IsCancellationRequested)
+                                    token.WaitHandle.WaitOne(Math.Min(failures * 1000, 5000));
+                            }
+                            if (!token.IsCancellationRequested)
+                                throw new InvalidOperationException("Server could not recover after ten attempts.");
+
                         }
-                        else
+                        catch (Exception ex) { completion.TrySetException(ex); }
+                        finally
                         {
-                            Logit($"[{label}] Retry failed. Reason={reason}. Attempts={retries}");
+                            CloseSocket(out _);
+                            lock (_gate) { _mode = ServerMode.None; _loopThread = null; }
+                            completion.TrySetResult(true);
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Logit($"[{label}] Fatal Err={ex.Message}");
-                    }
-
-                    CloseSocket(out reason);
-
-                    if (!ct.IsCancellationRequested)
-                    {
-                        // capped linear backoff to avoid hot loop
-                        var delayMs = Math.Min(1000 * Math.Max(retries, 1), 5000);
-                        Logit($"[{label}] Disconnected. Retrying in {delayMs} ms...");
-                        try { await Task.Delay(delayMs, ct).ConfigureAwait(false); } catch { }
-                    }
-                }
-
-                Logit($"[{label}] Exiting after Retries= {maxRetries}.");
-            });
+                }) { IsBackground = true, Name = "IpcServerNetMq-IO" };
+                _loopThread.Start();
+                return completion.Task;
+            }
         }
 
-        private enum ServerMode { None, Polling, Loop }
-        private ServerMode serverMode;
-
-        /// <summary>
-        /// Ensures that the server socket is created and bound to the server address, making it ready for polling operations.
-        /// Throws an <see cref="InvalidOperationException"/> if the socket cannot be opened.
-        /// </summary>
         public void EnsurePollingReady()
         {
-            if (serverMode == ServerMode.Loop)
-                throw new InvalidOperationException("Server is running in loop mode; cannot switch to polling.");
-
-            try
+            lock (_gate)
             {
-                serverMode = ServerMode.Polling;
-
-                if ( (ServerSocket != null) && IsBound) // already open
-                    return;
-
-                if (!OpenSocket(out var reason))
-                    throw new InvalidOperationException($"OpenSocket failed={reason}");
-
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("EnsurePollingReady failed. Err={ex.Message}");
+                ThrowIfDisposed();
+                if (_mode == ServerMode.Loop) throw new InvalidOperationException("Server is running in loop mode; cannot switch to polling.");
+                EnsureSocketOwner();
+                _mode = ServerMode.Polling;
+                if (ServerSocket != null && IsBound) return;
+                if (!OpenSocket(out var reason)) throw new InvalidOperationException($"OpenSocket failed: {reason}");
             }
         }
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
+        public void Dispose() { Dispose(true); GC.SuppressFinalize(this); }
         protected virtual void Dispose(bool disposing)
         {
-            if (_disposed) return;
-
-            if (disposing)
+            Thread worker;
+            lock (_gate)
             {
-                try { CloseSocket(out _); } catch { /* best-effort */ }
-
-                //try { Runtime.Dispose(); } catch { /* best-effort */ }
-
-                // Global cleanup once, on dispose
-                try { NetMQConfig.Cleanup(); } catch { /* best-effort */ }
+                if (_disposed) return;
+                if (_mode == ServerMode.Polling) EnsureSocketOwner();
+                _disposed = true;
+                if (!disposing) return;
+                _stop.Cancel();
+                worker = _loopThread;
+                if (worker == null) CloseSocket(out _);
             }
-
-            _disposed = true;
+            if (worker != null && worker != Thread.CurrentThread) worker.Join();
+            // NetMQConfig.Cleanup belongs to the application, after all its sockets stop.
         }
     }
 }
